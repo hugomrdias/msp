@@ -1,0 +1,29 @@
+{
+  "name": "vite-hono",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "check": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && biome check .",
+    "dev": "concurrently -k -n web,api -c blue,green \"bun run dev:web\" \"bun run dev:api\"",
+    "dev:api": "PORT=3001 bun --watch server/index.ts",
+    "dev:web": "API_PORT=3001 vite dev",
+    "preview": "vite preview",
+    "start": "bun server/index.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.11",
+    "hono": "^4.12.9",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
+    "vite": "^8.0.2"
+  }
+}
