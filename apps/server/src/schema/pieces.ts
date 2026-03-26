@@ -1,5 +1,5 @@
 import { address, bigint } from '@hugomrdias/foxer'
-import { index, pgTable, primaryKey, text } from 'drizzle-orm/pg-core'
+import { index, json, pgTable, primaryKey, text } from 'drizzle-orm/pg-core'
 
 export const pieces = pgTable(
   'pieces',
@@ -9,6 +9,7 @@ export const pieces = pgTable(
     address: address().notNull(),
     cid: text('cid').notNull(),
     size: bigint(),
+    metadata: json().$type<Record<string, unknown>>(),
     blockNumber: bigint().notNull(),
   },
   (table) => [

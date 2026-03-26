@@ -85,6 +85,9 @@ pieces.command('add', {
           pieces: [
             {
               pieceCid,
+              metadata: {
+                myelin: 'testing',
+              },
             },
           ],
         })

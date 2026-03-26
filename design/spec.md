@@ -48,6 +48,12 @@ Replication should have a pipeline to validate copies at finalized depth to make
 
 TODO
 
+### Copies Constrains
+
+- Each copy needs to go to a different Service Provider different from the Source Piece and from each other
+- By default one extra copy should be created
+- Piece metadata can include `{ myelinCopies: [number of copies] }` to override the default
+
 ## API
 
 ### GET /request-key

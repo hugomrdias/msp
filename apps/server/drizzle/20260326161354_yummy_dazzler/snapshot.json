@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "50604f5a-5e8c-434d-9d5b-b06d4cd89db7",
+  "id": "2005ace0-02b9-45db-9e2b-1a2c894931fa",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
@@ -14,6 +14,20 @@
         "revoked"
       ],
       "name": "status",
+      "entityType": "enums",
+      "schema": "public"
+    },
+    {
+      "values": [
+        "pending",
+        "uploading",
+        "submitted",
+        "confirmed",
+        "finalized",
+        "failed",
+        "orphaned"
+      ],
+      "name": "piece_copy_status",
       "entityType": "enums",
       "schema": "public"
     },
@@ -38,6 +52,12 @@
     {
       "isRlsEnabled": false,
       "name": "keys",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": false,
+      "name": "pieceCopies",
       "entityType": "tables",
       "schema": "public"
     },
@@ -325,6 +345,227 @@
       "table": "keys"
     },
     {
+      "type": "bigserial",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "type": "varchar(42)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "owner",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_dataset_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_piece_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_provider_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "target_provider_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "target_dataset_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "target_piece_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "cid",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "size",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "type": "piece_copy_status",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "status",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "error",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "type": "json",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "metadata",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "requested_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "finalized_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
       "type": "bigint",
       "typeSchema": null,
       "notNull": true,
@@ -385,6 +626,19 @@
       "generated": null,
       "identity": null,
       "name": "size",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pieces"
+    },
+    {
+      "type": "json",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "metadata",
       "entityType": "columns",
       "schema": "public",
       "table": "pieces"
@@ -1233,6 +1487,153 @@
       "nameExplicit": true,
       "columns": [
         {
+          "value": "cid",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "piece_copies_cid_index",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "owner",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "piece_copies_owner_index",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "source_dataset_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "source_piece_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "piece_copies_source_piece_index",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "status",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "piece_copies_status_index",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "target_provider_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "piece_copies_target_provider_id_index",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "source_dataset_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "source_piece_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "target_provider_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "piece_copies_source_piece_target_provider_unique",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
           "value": "block_number",
           "isExpression": false,
           "asc": true,
@@ -1423,6 +1824,16 @@
     },
     {
       "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "name": "pieceCopies_pkey",
+      "schema": "public",
+      "table": "pieceCopies",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
         "provider_id"
       ],
       "nameExplicit": false,
@@ -1460,6 +1871,13 @@
       "schema": "public",
       "table": "transactions",
       "entityType": "pks"
+    },
+    {
+      "value": "\"target_provider_id\" IS NULL OR \"target_provider_id\" <> \"source_provider_id\"",
+      "name": "piece_copies_target_provider_not_source_check",
+      "entityType": "checks",
+      "schema": "public",
+      "table": "pieceCopies"
     }
   ],
   "renames": []

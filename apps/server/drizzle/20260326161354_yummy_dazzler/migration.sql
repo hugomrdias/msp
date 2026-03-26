@@ -1,4 +1,5 @@
 CREATE TYPE "status" AS ENUM('pending', 'active', 'error', 'revoked');--> statement-breakpoint
+CREATE TYPE "piece_copy_status" AS ENUM('pending', 'uploading', 'submitted', 'confirmed', 'finalized', 'failed', 'orphaned');--> statement-breakpoint
 CREATE TYPE "transaction_type" AS ENUM('legacy', 'eip1559', 'eip2930', 'eip4844', 'eip7702');--> statement-breakpoint
 CREATE TABLE "datasets" (
 	"data_set_id" bigint PRIMARY KEY,
@@ -25,12 +26,34 @@ CREATE TABLE "keys" (
 	"expires_at" bigint
 );
 --> statement-breakpoint
+CREATE TABLE "pieceCopies" (
+	"id" bigserial PRIMARY KEY,
+	"owner" varchar(42) NOT NULL,
+	"source_dataset_id" bigint NOT NULL,
+	"source_piece_id" bigint NOT NULL,
+	"source_provider_id" bigint NOT NULL,
+	"target_provider_id" bigint,
+	"target_dataset_id" bigint,
+	"target_piece_id" bigint,
+	"cid" text NOT NULL,
+	"size" bigint,
+	"status" "piece_copy_status" NOT NULL,
+	"error" text,
+	"metadata" json,
+	"requested_at" bigint NOT NULL,
+	"created_at" bigint,
+	"updated_at" bigint,
+	"finalized_at" bigint,
+	CONSTRAINT "piece_copies_target_provider_not_source_check" CHECK ("target_provider_id" IS NULL OR "target_provider_id" <> "source_provider_id")
+);
+--> statement-breakpoint
 CREATE TABLE "pieces" (
 	"id" bigint,
 	"dataset_id" bigint,
 	"address" varchar(42) NOT NULL,
 	"cid" text NOT NULL,
 	"size" bigint,
+	"metadata" json,
 	"block_number" bigint NOT NULL,
 	CONSTRAINT "pieces_pkey" PRIMARY KEY("dataset_id","id")
 );
@@ -114,6 +137,12 @@ CREATE TABLE "transactions" (
 );
 --> statement-breakpoint
 CREATE INDEX "datasets_block_number_index" ON "datasets" ("block_number");--> statement-breakpoint
+CREATE INDEX "piece_copies_cid_index" ON "pieceCopies" ("cid");--> statement-breakpoint
+CREATE INDEX "piece_copies_owner_index" ON "pieceCopies" ("owner");--> statement-breakpoint
+CREATE INDEX "piece_copies_source_piece_index" ON "pieceCopies" ("source_dataset_id","source_piece_id");--> statement-breakpoint
+CREATE INDEX "piece_copies_status_index" ON "pieceCopies" ("status");--> statement-breakpoint
+CREATE INDEX "piece_copies_target_provider_id_index" ON "pieceCopies" ("target_provider_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "piece_copies_source_piece_target_provider_unique" ON "pieceCopies" ("source_dataset_id","source_piece_id","target_provider_id");--> statement-breakpoint
 CREATE INDEX "pieces_block_number_index" ON "pieces" ("block_number");--> statement-breakpoint
 CREATE INDEX "providers_block_number_index" ON "providers" ("block_number");--> statement-breakpoint
 CREATE INDEX "sessionKeys_identity_index" ON "sessionKeys" ("identity");--> statement-breakpoint

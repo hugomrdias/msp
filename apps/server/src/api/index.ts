@@ -9,6 +9,7 @@ import * as z from 'zod'
 import type { Database } from '../../foxer.config.ts'
 import { schema } from '../schema/index.ts'
 import { zHex } from '../utils/schemas.ts'
+import { createCopies } from './copies.ts'
 import { createKeys } from './keys.ts'
 
 export interface FoxerContext {
@@ -22,6 +23,7 @@ export function createApi(context: FoxerContext) {
   app.use(cors())
   app.use('/sql/*', sqlMiddleware(context))
 
+  app.route('/copies', createCopies(context))
   app.route('/keys', createKeys(context))
 
   const piecesParamsSchema = z.object({

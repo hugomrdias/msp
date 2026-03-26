@@ -50,7 +50,7 @@ export const config = createConfig({
     storage: {
       address: calibration.contracts.fwss.address,
       abi: calibration.contracts.fwss.abi,
-      events: ['ServiceTerminated', 'DataSetCreated'],
+      events: ['ServiceTerminated', 'DataSetCreated', 'PieceAdded'],
       startBlock: START_BLOCK,
     },
     serviceProviderRegistry: {
