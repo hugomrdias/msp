@@ -1,0 +1,48 @@
+{
+  "name": "myelin-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Myelin server",
+  "keywords": [],
+  "license": "MIT",
+  "author": "Hugo Dias <hugomrdias@gmail.com>",
+  "files": [
+    "src",
+    "dist/src",
+    "dist/src/**/*.d.ts",
+    "dist/src/**/*.d.ts.map"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "dist/src/index.js",
+  "module": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "import": "./dist/src/index.js",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "scripts": {
+    "dev": "foxer dev",
+    "generate": "drizzle-kit generate",
+    "check": "tsc --noEmit && biome check .",
+    "build": "tsc -p ./tsconfig.client.json",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@filoz/synapse-core": "^0.3.1",
+    "@hono/standard-validator": "^0.2.2",
+    "@hugomrdias/foxer": "0.2.3",
+    "drizzle-orm": "1.0.0-beta.17-67b1795",
+    "hono": "^4.12.9",
+    "viem": "2.47.6",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "drizzle-kit": "1.0.0-beta.17-67b1795",
+    "typescript": "^5.9.3"
+  }
+}

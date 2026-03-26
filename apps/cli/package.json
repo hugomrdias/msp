@@ -1,0 +1,22 @@
+{
+  "name": "myelin-cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit && biome check ."
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "typescript": "^6.0.2"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.1.0",
+    "@filoz/synapse-core": "^0.3.1",
+    "@remix-run/fs": "^0.4.2",
+    "conf": "^15.1.0",
+    "incur": "^0.3.13",
+    "terminal-link": "^5.0.0",
+    "viem": "^2.47.6"
+  }
+}
