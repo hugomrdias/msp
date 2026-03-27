@@ -10,7 +10,9 @@ import {
   getPdpDataSet,
   type PdpDataSet,
 } from '@filoz/synapse-core/warm-storage'
+import { createClient } from '@hugomrdias/foxer-client'
 import { Cli, z } from 'incur'
+import { Schema } from 'myelin-server'
 import { privateKeyClient } from '../client.ts'
 import { globalOptions } from '../options.ts'
 import { hashLink, selectDataSet, selectProvider } from '../utils.ts'
@@ -86,7 +88,7 @@ pieces.command('add', {
             {
               pieceCid,
               metadata: {
-                myelin: 'testing',
+                myelin: 'testing2',
               },
             },
           ],
@@ -127,6 +129,35 @@ pieces.command('add', {
         code: 'FAILED_TO_ADD_PIECE',
         message: (error as Error).message,
       })
+    }
+  },
+})
+
+pieces.command('list', {
+  description: 'List pieces in a dataset',
+  options: globalOptions,
+  async run(c) {
+    const { client } = privateKeyClient(c.options.chainId)
+
+    const foxer = createClient({
+      baseUrl: 'http://localhost:4200/sql',
+      relations: Schema.relations,
+      schema: Schema.schema,
+    })
+
+    const pieces = await foxer.db.query.pieces.findMany({
+      orderBy: {
+        blockNumber: 'desc',
+      },
+      limit: 100,
+      offset: 0,
+      where: {
+        address: client.account.address,
+      },
+    })
+
+    for (const piece of pieces) {
+      console.log(piece.cid, piece.metadata)
     }
   },
 })

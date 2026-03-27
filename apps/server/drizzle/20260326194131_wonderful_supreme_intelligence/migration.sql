@@ -32,6 +32,7 @@ CREATE TABLE "pieceCopies" (
 	"source_dataset_id" bigint NOT NULL,
 	"source_piece_id" bigint NOT NULL,
 	"source_provider_id" bigint NOT NULL,
+	"source_block_number" bigint NOT NULL,
 	"target_provider_id" bigint,
 	"target_dataset_id" bigint,
 	"target_piece_id" bigint,

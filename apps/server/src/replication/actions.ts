@@ -1,0 +1,353 @@
+import * as Piece from '@filoz/synapse-core/piece'
+import * as SP from '@filoz/synapse-core/sp'
+import {
+  getPDPProvider,
+  type PDPProvider,
+} from '@filoz/synapse-core/sp-registry'
+import {
+  signAddPieces,
+  signCreateDataSetAndAddPieces,
+} from '@filoz/synapse-core/typed-data'
+import {
+  createPieceUrlPDP,
+  datasetMetadataObjectToEntry,
+  pieceMetadataObjectToEntry,
+  randU256,
+} from '@filoz/synapse-core/utils'
+import {
+  fetchProviderSelectionInput,
+  getPdpDataSet,
+  type PdpDataSet,
+  selectProviders,
+} from '@filoz/synapse-core/warm-storage'
+import { and, eq, inArray, lte, sql } from 'drizzle-orm'
+import { type Address, createWalletClient, type Hex } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
+import type { Context } from '../../foxer.config.ts'
+import type { PieceCopyStatus } from '../schema/piece-copies.ts'
+import type { BasePullPiecesOptions } from '../types.ts'
+import { MYELIN_METADATA } from '../utils/constants.ts'
+import { nowInSecondsBigint } from '../utils/time.ts'
+
+export type CopiesGroup = {
+  owner: Address
+  sourceProviderId: bigint
+  copies: {
+    id: bigint
+    cid: string
+    metadata: Record<string, unknown> | null
+  }[]
+  privateKey: Hex
+}
+export async function groupCopies(context: Context) {
+  const { db, schema } = context
+
+  const lastBlockNumber = await context.publicClient.getBlockNumber()
+  const finalizedBlockNumber = lastBlockNumber - context.finalityDepth
+  const groups = await db
+    .select({
+      owner: schema.pieceCopies.owner,
+      sourceProviderId: schema.pieceCopies.sourceProviderId,
+      copies: sql<CopiesGroup['copies']>`json_agg(
+        json_build_object(
+          'id',
+          ${schema.pieceCopies.id},
+          'cid',
+          ${schema.pieceCopies.cid},
+          'metadata',
+          ${schema.pieceCopies.metadata}
+        )
+        order by ${schema.pieceCopies.id}
+      )`,
+    })
+    .from(schema.pieceCopies)
+    .where(
+      and(
+        lte(schema.pieceCopies.sourceBlockNumber, finalizedBlockNumber),
+        eq(schema.pieceCopies.status, 'pending')
+      )
+    )
+    .groupBy(schema.pieceCopies.owner, schema.pieceCopies.sourceProviderId)
+
+  const filteredGroups: CopiesGroup[] = []
+
+  for (const group of groups) {
+    const key = await db.query.keys.findFirst({
+      where: {
+        owner: group.owner,
+        status: 'active',
+      },
+    })
+
+    if (!key) {
+      continue
+    }
+
+    filteredGroups.push({
+      owner: group.owner,
+      sourceProviderId: group.sourceProviderId,
+      copies: group.copies,
+      privateKey: key.privateKey,
+    })
+  }
+
+  return filteredGroups
+}
+
+/**
+ * Updates the status of a group of copies.
+ *
+ * @param options - The options for the function.
+ * @returns The updated copies status.
+ */
+export async function updateCopiesStatus({
+  context,
+  ids,
+  status,
+  error,
+  targetProviderId,
+  targetDatasetId,
+}: {
+  context: Context
+  ids: bigint[]
+  status: PieceCopyStatus
+  targetProviderId?: bigint
+  targetDatasetId?: bigint
+  error?: string
+}) {
+  const { db, schema } = context
+
+  await db
+    .update(schema.pieceCopies)
+    .set({
+      status,
+      error: error ?? '',
+      targetProviderId,
+      targetDatasetId,
+      updatedAt: nowInSecondsBigint(),
+    })
+    .where(inArray(schema.pieceCopies.id, ids))
+}
+
+export type ResolveGroupLocationOptions = {
+  context: Context
+  owner: Address
+  sourceProviderId: bigint
+}
+export type ResolvedLocation =
+  | {
+      provider: PDPProvider
+      dataset?: undefined
+    }
+  | {
+      provider: PDPProvider
+      dataset: PdpDataSet
+    }
+
+/**
+ * Resolves the location of a group of copies.
+ *
+ * @param options - The options for the function.
+ * @returns The location of the group of copies.
+ */
+export async function resolveGroupLocation(
+  options: ResolveGroupLocationOptions
+) {
+  const { context, owner, sourceProviderId } = options
+  const { publicClient } = context
+
+  const result = await fetchProviderSelectionInput(publicClient, {
+    address: owner,
+  })
+
+  const selectedProviders = selectProviders({
+    ...result,
+    count: 1,
+    endorsedIds: new Set(),
+    excludeProviderIds: new Set([sourceProviderId]),
+  })
+
+  if (selectedProviders.length === 0) {
+    throw new Error('No providers selected')
+  }
+
+  if (selectedProviders[0].dataSetId === null) {
+    return {
+      provider: selectedProviders[0].provider,
+    }
+  } else {
+    const dataset = await getPdpDataSet(publicClient, {
+      dataSetId: selectedProviders[0].dataSetId,
+    })
+    if (!dataset) {
+      throw new Error('Dataset not found')
+    }
+    return {
+      provider: selectedProviders[0].provider,
+      dataset,
+    }
+  }
+}
+
+export type SignExtraDataOptions = {
+  context: Context
+  location: ResolvedLocation
+  group: CopiesGroup
+}
+
+/**
+ * Signs the extra data for a group of copies.
+ *
+ * @param options - The options for the function.
+ * @returns The extra data for the group of copies.
+ */
+export function signExtraData(options: SignExtraDataOptions) {
+  const { context, location } = options
+
+  const walletClient = createWalletClient({
+    account: privateKeyToAccount(options.group.privateKey),
+    chain: context.chain,
+    transport: context.transport,
+  })
+  if (location.dataset) {
+    return signAddPieces(walletClient, {
+      clientDataSetId: location.dataset.clientDataSetId,
+      pieces: options.group.copies.map((copy) => ({
+        pieceCid: Piece.parse(copy.cid),
+        metadata: pieceMetadataObjectToEntry(MYELIN_METADATA),
+      })),
+    })
+  }
+
+  return signCreateDataSetAndAddPieces(walletClient, {
+    clientDataSetId: randU256(),
+    payee: location.provider.serviceProvider,
+    payer: options.group.owner,
+    pieces: options.group.copies.map((copy) => ({
+      pieceCid: Piece.parse(copy.cid),
+      metadata: pieceMetadataObjectToEntry(MYELIN_METADATA),
+    })),
+    metadata: datasetMetadataObjectToEntry(MYELIN_METADATA),
+  })
+}
+
+export type PullCopiesOptions = {
+  context: Context
+  location: ResolvedLocation
+  group: CopiesGroup
+  extraData: Hex
+}
+export async function pullCopies(options: PullCopiesOptions) {
+  const { context, location, group, extraData } = options
+  const walletClient = createWalletClient({
+    account: privateKeyToAccount(options.group.privateKey),
+    chain: context.chain,
+    transport: context.transport,
+  })
+
+  const sourceProvider = await getPDPProvider(context.publicClient, {
+    providerId: options.group.sourceProviderId,
+  })
+  if (!sourceProvider) {
+    throw new Error('Source provider not found')
+  }
+  const pullPiecesInput = group.copies.map((copy) => ({
+    pieceCid: Piece.parse(copy.cid),
+    sourceUrl: createPieceUrlPDP({
+      cid: copy.cid,
+      serviceURL: sourceProvider.pdp.serviceURL,
+    }),
+  }))
+
+  const basePullOptions: BasePullPiecesOptions = {
+    serviceURL: location.provider.pdp.serviceURL,
+    pieces: pullPiecesInput,
+    extraData,
+  }
+  const pullOptions = location.dataset
+    ? {
+        ...basePullOptions,
+        dataSetId: location.dataset.dataSetId,
+        clientDataSetId: location.dataset.clientDataSetId,
+      }
+    : {
+        ...basePullOptions,
+        payee: location.provider.serviceProvider,
+        payer: group.owner,
+        metadata: MYELIN_METADATA,
+      }
+
+  const response = await SP.waitForPullStatus(walletClient, {
+    ...pullOptions,
+    onStatus: (response) => {
+      context.logger.info(
+        { response, serviceURL: location.provider.pdp.serviceURL },
+        'Pull pieces status'
+      )
+    },
+  })
+
+  return response
+}
+
+export interface CommitCopiesOptions extends CopiesGroup {
+  context: Context
+  extraData: Hex
+  dataset?: {
+    clientDataSetId: string
+    dataSetId: bigint
+  }
+  provider: {
+    serviceURL: string
+    serviceProvider: Address
+    payee: Address
+  }
+}
+export async function commitCopies(options: CommitCopiesOptions) {
+  const { privateKey, context, extraData } = options
+  const walletClient = createWalletClient({
+    account: privateKeyToAccount(privateKey),
+    chain: context.chain,
+    transport: context.transport,
+  })
+
+  if (options.dataset) {
+    const rsp = await SP.addPieces(walletClient, {
+      clientDataSetId: BigInt(options.dataset.clientDataSetId),
+      dataSetId: options.dataset.dataSetId,
+      serviceURL: options.provider.serviceURL,
+      pieces: options.copies.map((copy) => ({
+        pieceCid: Piece.parse(copy.cid),
+        metadata: MYELIN_METADATA,
+      })),
+      extraData,
+    })
+    context.logger.info({ txHash: rsp.txHash }, 'Adding pieces to data set')
+    const confirmed = await SP.waitForAddPieces(rsp)
+
+    context.logger.info({ confirmed }, 'Adding pieces to data set confirmed')
+    return confirmed
+  } else {
+    const rsp = await SP.createDataSetAndAddPieces(walletClient, {
+      payee: options.provider.payee,
+      payer: options.owner,
+      cdn: false,
+      serviceURL: options.provider.serviceURL,
+      pieces: options.copies.map((copy) => ({
+        pieceCid: Piece.parse(copy.cid),
+        metadata: MYELIN_METADATA,
+      })),
+      extraData,
+    })
+    context.logger.info(
+      { txHash: rsp.txHash },
+      'Creating data set and adding pieces'
+    )
+    const confirmed = await SP.waitForCreateDataSetAddPieces(rsp)
+    context.logger.info(
+      { confirmed },
+      'Creating data set and adding pieces confirmed'
+    )
+    return confirmed
+  }
+}

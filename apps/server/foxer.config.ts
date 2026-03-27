@@ -1,7 +1,16 @@
-import { calibration } from '@filoz/synapse-core/chains'
-import type { Database as FoxerDatabase, HookRegistry } from '@hugomrdias/foxer'
+import { type Chain, calibration } from '@filoz/synapse-core/chains'
+import type {
+  Database as FoxerDatabase,
+  HookRegistry,
+  Logger,
+} from '@hugomrdias/foxer'
 import { createConfig } from '@hugomrdias/foxer'
-import { http } from 'viem'
+import {
+  createPublicClient,
+  http,
+  type PublicClient,
+  type Transport,
+} from 'viem'
 
 import { createApi } from './src/api/index.ts'
 import { handleDatasets } from './src/hooks/handle-datasets.ts'
@@ -11,6 +20,7 @@ import { handleSessionKeys } from './src/hooks/handle-session-keys.ts'
 import { relations, schema } from './src/schema/index.ts'
 
 const START_BLOCK = 3573291n - 200n
+export const FINALITY_DEPTH = 2n
 
 export type Database = FoxerDatabase<typeof schema, typeof relations>
 
@@ -20,8 +30,34 @@ export type Registry = HookRegistry<
   typeof config.relations
 >
 
+export const publicClient = createPublicClient({
+  chain: calibration,
+  transport: http(process.env.RPC_LIVE_URL),
+})
+
+export interface Context {
+  db: Database
+  logger: Logger
+  publicClient: PublicClient<Transport, Chain>
+  finalityDepth: bigint
+  schema: typeof schema
+  relations: typeof relations
+  chain: Chain
+  transport: Transport
+}
+
 export const config = createConfig({
-  hono: createApi,
+  hono: (context) =>
+    createApi({
+      db: context.db,
+      logger: context.logger,
+      publicClient,
+      finalityDepth: FINALITY_DEPTH,
+      schema,
+      relations,
+      chain: calibration,
+      transport: http(process.env.RPC_URL),
+    }),
   hooks: ({ registry }) => {
     handleDatasets(registry)
     handlePieces(registry)

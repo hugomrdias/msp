@@ -21,6 +21,8 @@ export const pieceCopyStatusEnum = pgEnum('piece_copy_status', [
   'orphaned',
 ])
 
+export type PieceCopyStatus = (typeof pieceCopyStatusEnum.enumValues)[number]
+
 export const pieceCopies = pgTable(
   'pieceCopies',
   {
@@ -29,6 +31,7 @@ export const pieceCopies = pgTable(
     sourceDatasetId: bigint().notNull(),
     sourcePieceId: bigint().notNull(),
     sourceProviderId: bigint().notNull(),
+    sourceBlockNumber: bigint().notNull(),
     targetProviderId: bigint(),
     targetDatasetId: bigint(),
     targetPieceId: bigint(),
@@ -36,7 +39,7 @@ export const pieceCopies = pgTable(
     size: bigint(),
     status: pieceCopyStatusEnum().notNull(),
     error: text(),
-    metadata: json().$type<Record<string, unknown>>(),
+    metadata: json().$type<Record<string, string>>(),
     requestedAt: bigint().notNull(),
     createdAt: bigint(),
     updatedAt: bigint(),

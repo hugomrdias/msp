@@ -3,6 +3,7 @@ import { metadataArrayToObject } from '@filoz/synapse-core/utils'
 import type { Logger } from '@hugomrdias/foxer'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { Database, Registry } from '../../foxer.config.ts'
+import { isMyelinTagged } from '../replication/metadata.ts'
 import { schema } from '../schema/index.ts'
 
 export function handlePieces(registry: Registry) {
@@ -41,12 +42,18 @@ export function handlePieces(registry: Registry) {
       })
       .onConflictDoNothing()
 
+    // Replicated pieces are indexed too, but they should not recursively create more copy intents.
+    if (isMyelinTagged(metadata)) {
+      return
+    }
+
     await ensurePieceCopyIntent({
       context,
       owner: dataset.payer,
       sourceDatasetId: args.dataSetId,
       sourcePieceId: args.pieceId,
       sourceProviderId: dataset.providerId,
+      sourceBlockNumber: event.block.number,
       cid: cid.toString(),
       size,
       timestamp: event.block.timestamp,
@@ -103,6 +110,7 @@ async function ensurePieceCopyIntent({
   sourceDatasetId,
   sourcePieceId,
   sourceProviderId,
+  sourceBlockNumber,
   cid,
   size,
   timestamp,
@@ -115,6 +123,7 @@ async function ensurePieceCopyIntent({
   sourceDatasetId: bigint
   sourcePieceId: bigint
   sourceProviderId: bigint
+  sourceBlockNumber: bigint
   cid: string
   size: bigint
   timestamp: bigint
@@ -130,7 +139,7 @@ async function ensurePieceCopyIntent({
   })
 
   if (!key?.owner) {
-    return
+    return null
   }
 
   const existingCopy = await context.db.query.pieceCopies.findFirst({
@@ -145,23 +154,30 @@ async function ensurePieceCopyIntent({
   })
 
   if (!existingCopy) {
-    await context.db.insert(schema.pieceCopies).values({
-      owner,
-      sourceDatasetId,
-      sourcePieceId,
-      sourceProviderId,
-      cid,
-      size,
-      status: 'pending',
-      requestedAt: timestamp,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    })
-    return
+    // Return the new row id so the caller can enqueue background work immediately.
+    const [createdCopy] = await context.db
+      .insert(schema.pieceCopies)
+      .values({
+        owner,
+        sourceDatasetId,
+        sourcePieceId,
+        sourceProviderId,
+        sourceBlockNumber,
+        cid,
+        size,
+        status: 'pending',
+        requestedAt: timestamp,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+      .returning({
+        id: schema.pieceCopies.id,
+      })
+    return createdCopy?.id ?? null
   }
 
   if (existingCopy.status !== 'orphaned') {
-    return
+    return null
   }
 
   await context.db
@@ -169,11 +185,19 @@ async function ensurePieceCopyIntent({
     .set({
       owner,
       sourceProviderId,
+      sourceBlockNumber,
       cid,
       size,
+      targetProviderId: null,
+      targetDatasetId: null,
+      targetPieceId: null,
       status: 'pending',
       error: null,
+      metadata: null,
       updatedAt: timestamp,
     })
     .where(eq(schema.pieceCopies.id, existingCopy.id))
+
+  // Reuse the same intent row after reorg-style removal instead of creating duplicates.
+  return existingCopy.id
 }

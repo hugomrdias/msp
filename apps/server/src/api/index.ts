@@ -6,19 +6,18 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { stringify } from 'viem'
 import * as z from 'zod'
-import type { Database } from '../../foxer.config.ts'
+import type { Context } from '../../foxer.config.ts'
+import { startQueue } from '../replication/queue.ts'
 import { schema } from '../schema/index.ts'
 import { zHex } from '../utils/schemas.ts'
 import { createCopies } from './copies.ts'
 import { createKeys } from './keys.ts'
 
-export interface FoxerContext {
-  db: Database
-  logger: Logger
-}
-
-export function createApi(context: FoxerContext) {
+export function createApi(context: Context) {
   const { db } = context
+
+  startQueue(context)
+
   const app = new Hono()
   app.use(cors())
   app.use('/sql/*', sqlMiddleware(context))

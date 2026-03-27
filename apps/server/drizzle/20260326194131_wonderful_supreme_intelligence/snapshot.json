@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "2005ace0-02b9-45db-9e2b-1a2c894931fa",
+  "id": "4c67c05b-ba32-4475-b83e-c2d77a8f468b",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
@@ -405,6 +405,19 @@
       "generated": null,
       "identity": null,
       "name": "source_provider_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "pieceCopies"
+    },
+    {
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "source_block_number",
       "entityType": "columns",
       "schema": "public",
       "table": "pieceCopies"
