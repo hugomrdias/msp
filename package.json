@@ -1,5 +1,5 @@
 {
-  "name": "myelin",
+  "name": "msp",
   "type": "module",
   "private": true,
   "license": "MIT",
@@ -17,7 +17,9 @@
     "check": "biome check .",
     "build": "bun run --filter=msp-server build",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "cli": "bun apps/cli/src/cli.ts"
+    "cli": "bun apps/cli/src/cli.ts",
+    "app": "bun run --filter=msp-app dev",
+    "server": "bun run --filter=msp-server dev"
   },
   "packageManager": "bun@1.3.10",
   "engines": {

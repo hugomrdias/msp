@@ -12,7 +12,7 @@ import {
 } from '@filoz/synapse-core/warm-storage'
 import { createClient } from '@hugomrdias/foxer-client'
 import { Cli, z } from 'incur'
-import { Schema } from 'myelin-server'
+import { Schema } from 'msp-server'
 import { privateKeyClient } from '../client.ts'
 import { globalOptions } from '../options.ts'
 import { hashLink, selectDataSet, selectProvider } from '../utils.ts'

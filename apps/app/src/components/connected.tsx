@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select'
 import { formatBytes } from '@/lib/utils'
 
+import Copies from './copies'
 import Datasets from './datasets'
 import Pieces from './pieces'
 import SessionKeys from './session-keys'
@@ -30,9 +31,10 @@ const items = [
   { label: 'Session Keys', value: 'session-keys' },
   { label: 'Datasets', value: 'datasets' },
   { label: 'Pieces', value: 'pieces' },
+  { label: 'Copies', value: 'copies' },
 ] as const
 
-const sectionValues = ['session-keys', 'datasets', 'pieces'] as const
+const sectionValues = ['session-keys', 'datasets', 'pieces', 'copies'] as const
 type Section = (typeof sectionValues)[number]
 
 function isSection(value: string): value is Section {
@@ -128,6 +130,7 @@ export function Connected() {
           {section === 'session-keys' && <SessionKeys />}
           {section === 'datasets' && <Datasets />}
           {section === 'pieces' && <Pieces />}
+          {section === 'copies' && <Copies />}
         </CardContent>
         <CardFooter>
           <p>Filecoin Onchain Cloud</p>

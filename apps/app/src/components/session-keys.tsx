@@ -4,7 +4,7 @@
 import * as SessionKey from '@filoz/synapse-core/session-key'
 import { useFoxerQuery } from '@hugomrdias/foxer-react'
 import { toast } from 'sonner'
-import { generatePrivateKey } from 'viem/accounts'
+import type { Address } from 'viem'
 import { useConnection, useConnectorClient } from 'wagmi'
 
 import { Button } from '@/components/ui/button'
@@ -59,27 +59,48 @@ export function SessionKeys() {
         <Button
           size="xs"
           onClick={async () => {
-            toast.loading('Creating session key...', {
-              id: 'create-session-key',
-            })
-            const sessionKey = SessionKey.fromSecp256k1({
-              privateKey: generatePrivateKey(),
-              root: address!,
-              chain: result.data!.chain,
-            })
-            await SessionKey.loginSync(result.data!, {
-              address: sessionKey.address,
-              origin: 'foxer',
-              onHash(hash) {
-                toast.loading('Creating session key...', {
-                  description: `Waiting for tx ${hash} to be mined...`,
-                  id: 'create-session-key',
-                })
-              },
-            })
-            toast.success('Session key created', {
-              id: 'create-session-key',
-            })
+            try {
+              toast.loading('Requesting session key from server...', {
+                id: 'create-session-key',
+              })
+              const response = await fetch('http://localhost:4200/keys', {
+                method: 'POST',
+              })
+              if (!response.ok) {
+                const body = await response.text()
+                throw new Error(`Server returned ${response.status}: ${body}`)
+              }
+              const { address: keyAddress } = (await response.json()) as {
+                address: Address
+              }
+              toast.loading('Approving session key on-chain...', {
+                description: `Key: ${keyAddress}`,
+                id: 'create-session-key',
+              })
+              const oneHundredYears = BigInt(
+                Math.floor(Date.now() / 1000) + 100 * 365 * 24 * 60 * 60
+              )
+              await SessionKey.loginSync(result.data!, {
+                address: keyAddress,
+                origin: 'msp-app',
+                expiresAt: oneHundredYears,
+                onHash(hash) {
+                  toast.loading('Approving session key on-chain...', {
+                    description: `Waiting for tx ${hash} to be mined...`,
+                    id: 'create-session-key',
+                  })
+                },
+              })
+              toast.success('Session key created', {
+                id: 'create-session-key',
+              })
+            } catch (error) {
+              toast.error('Failed to create session key', {
+                description:
+                  error instanceof Error ? error.message : String(error),
+                id: 'create-session-key',
+              })
+            }
           }}
         >
           Create Session Key

@@ -8,5 +8,10 @@
     },
     "enabled": true
   },
+  "css": {
+    "parser": {
+      "tailwindDirectives": true
+    }
+  },
   "extends": ["@hugomrdias/configs/biome"]
 }
