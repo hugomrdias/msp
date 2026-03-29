@@ -225,6 +225,76 @@ When `pdpVerifier:PiecesRemoved` fires, matching `pieceCopies` rows are set to `
 
 On startup the replicate queue is obliterated (all bunqueue jobs cleared) and all `processing` rows are reset to `pending`. This makes the database the single source of truth — the grouping worker re-discovers and re-enqueues them naturally. This handles bunqueue SQLite corruption, crashes mid-flight, or any other state where a bunqueue job and DB row could get out of sync.
 
+##### Queue configuration
+
+Replication uses [bunqueue][bunqueue] in embedded mode (in-process SQLite, no external dependencies). Two queues share a single SQLite database at `MSP_BUNQUEUE_PATH` (defaults to `.bunqueue/replication.sqlite`).
+
+###### Grouping queue
+
+A repeatable job that fires every 30 seconds. It groups pending copies and enqueues replicate jobs, then runs the finalization pipeline.
+
+| Setting | Value | Rationale |
+|---|---|---|
+| `repeat.every` | `30_000` (30 s) | Poll interval — matches Filecoin block time so new finalized copies are picked up each block |
+| `attempts` | `1` | Failure is safe — the next tick retries naturally |
+| `removeOnComplete` | `true` | No need to keep completed ticks |
+| `removeOnFail` | `true` | Failures are transient; next tick recovers |
+
+###### Replicate queue
+
+Persistent jobs that perform the full replication lifecycle per group of copies: resolve target SP → sign → pull data → commit on-chain → update DB.
+
+**Job options (`DEFAULT_JOB_OPTIONS`):**
+
+| Setting | Value | Rationale |
+|---|---|---|
+| `attempts` | `3` | Three tries before moving to DLQ |
+| `backoff.type` | `exponential` | Avoids hammering a failing SP or congested chain |
+| `backoff.delay` | `30_000` (30 s) | Base delay aligned to Filecoin block time — retries at ~30 s, ~60 s, ~120 s |
+| `timeout` | `900_000` (15 min) | Hard ceiling per job; prevents hung `waitForPullStatus` or stuck tx confirmation from blocking the queue indefinitely |
+
+**Worker options:**
+
+| Setting | Value | Rationale |
+|---|---|---|
+| `concurrency` | `3` | Jobs are I/O-bound (network pulls + chain tx); each group carries its own private key so nonce conflicts don't arise |
+| `lockDuration` | `600_000` (10 min) | A single job may pull large files (minutes) then wait for on-chain confirmation (~30 s per block). The default 30 s lock would cause false stall detection mid-flight |
+| `heartbeatInterval` | `15_000` (15 s) | Heartbeats renew the lock while the job is alive. 15 s keeps the lock fresh without excessive SQLite writes |
+| `maxStalledCount` | `2` | Tolerates one missed heartbeat before marking a job as stalled — avoids false positives during GC pauses or brief I/O stalls |
+
+**Dead letter queue (DLQ):**
+
+| Setting | Value | Rationale |
+|---|---|---|
+| `autoRetry` | `false` | Failed copies are retried via the grouping worker (DB is source of truth), not DLQ auto-retry |
+| `maxEntries` | `100` | Preserves debugging info for recent failures |
+| `maxAge` | `604_800_000` (7 days) | Auto-purges old entries to prevent unbounded growth |
+
+The DLQ is *not* purged on startup — entries serve as an audit trail for diagnosing replication failures. Jobs enter the DLQ for these reasons: `explicit_fail` (job threw), `max_attempts_exceeded`, `timeout` (exceeded 15 min), `stalled` (no heartbeat).
+
+**Progress tracking:**
+
+The replicate worker reports progress at each pipeline step for diagnosing where jobs get stuck:
+
+| Progress | Step |
+|---|---|
+| 10% | Resolving target provider |
+| 20% | Signing extra data (EIP-712) |
+| 30% | Pulling pieces to target SP |
+| 70% | Committing on-chain |
+| 90% | Updating copy records |
+
+###### Shutdown
+
+Graceful shutdown follows four steps:
+
+1. **Pause** — all workers stop accepting new jobs.
+2. **Drain** — wait up to 90 s for active jobs to finish (`Promise.race` against a timeout). If the timeout fires, force-close all workers.
+3. **Close queues** — flush pending writes and close queue connections.
+4. **Shutdown manager** — `shutdownManager()` flushes the SQLite WAL and closes the database.
+
+The exit hook has a 120 s hard limit (`asyncExitHook({ wait: 120_000 })`). This accommodates the 90 s drain window plus time for queue close and SQLite flush. The 90 s drain timeout is shorter than the 120 s exit hook to ensure force-close always runs before the process is killed.
+
 ###### Future work
 
 **1. `mspCopies` metadata override**
@@ -248,6 +318,16 @@ If other confirmed copies of the same piece exist (on different SPs), the replic
 **3. No funds**
 
 Use costs api to check funds before replication
+
+**4. FlowProducer pipeline for pull → commit**
+
+bunqueue's `FlowProducer.addChain` could model the replication steps (resolve → pull → commit) as separate chained jobs instead of a single monolithic replicate job. Benefits:
+
+- Per-step retry logic — pull failures (network/SP issues) and commit failures (gas, nonce, reorgs) need different retry strategies and backoff timings.
+- Better observability — each step is a separate job with its own status, progress, and timing in the DLQ.
+- Idempotent pull skip — on retry, a separate pull job can check if data is already at the target SP and skip immediately, avoiding redundant data transfer.
+- Parent results — the commit job can access the pull job's result via `flow.getParentResult()` to get the pull status and any metadata.
+- `failParentOnFailure` — if the pull step fails terminally, the commit step is automatically cancelled.
 
 ## API
 

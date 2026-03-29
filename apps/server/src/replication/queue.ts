@@ -49,9 +49,7 @@ export async function startQueue(context: Context) {
       context.logger.warn('Waiting for active jobs to complete...')
 
       try {
-        await Promise.race([
-          Promise.all(Object.values(workers).map((w) => w.close())),
-        ])
+        await Promise.all(Object.values(workers).map((w) => w.close()))
         context.logger.warn('All workers closed gracefully')
       } catch {
         context.logger.error('Forcing worker shutdown...')
@@ -68,7 +66,7 @@ export async function startQueue(context: Context) {
       context.logger.warn('Shutdown queues completed')
     },
     {
-      wait: 30_000, // 30 seconds
+      wait: 120_000,
     }
   )
 

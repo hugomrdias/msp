@@ -22,7 +22,8 @@ function queueDataPath() {
 export const REPLICATION_QUEUE_DATA_PATH = queueDataPath()
 export const DEFAULT_JOB_OPTIONS = {
   attempts: 3,
-  backoff: { type: 'exponential', delay: 2_000 },
+  backoff: { type: 'exponential', delay: 30_000 },
+  timeout: 900_000,
 } satisfies JobOptions
 
 export const MAX_BATCH_SIZE = 50

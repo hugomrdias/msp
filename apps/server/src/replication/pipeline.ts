@@ -20,10 +20,10 @@ export const ReplicateQueue = new Queue<CopiesGroup>('replicate', {
 })
 
 export function startReplicateWorker(context: Context) {
-  ReplicateQueue.purgeDlq()
   ReplicateQueue.setDlqConfig({
     autoRetry: false,
-    maxEntries: 2,
+    maxEntries: 100,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
   })
 
   const worker = new Worker<CopiesGroup>(
@@ -34,6 +34,7 @@ export function startReplicateWorker(context: Context) {
         'Processing replicate job'
       )
 
+      await job.updateProgress(10, 'Resolving target provider')
       const location = await resolveGroupLocation({
         context,
         payer: job.data.payer,
@@ -48,12 +49,14 @@ export function startReplicateWorker(context: Context) {
         targetDatasetId: location.dataset?.dataSetId,
       })
 
+      await job.updateProgress(20, 'Signing extra data')
       const extraData = await signExtraData({
         context,
         location,
         group: job.data,
       })
 
+      await job.updateProgress(30, 'Pulling pieces to target SP')
       const response = await pullCopies({
         context,
         location,
@@ -65,6 +68,7 @@ export function startReplicateWorker(context: Context) {
         throw new Error(`Pull failed: ${response.status}`)
       }
 
+      await job.updateProgress(70, 'Committing on-chain')
       const result = await commitCopies({
         context,
         ...job.data,
@@ -82,6 +86,7 @@ export function startReplicateWorker(context: Context) {
           : undefined,
       })
 
+      await job.updateProgress(90, 'Updating copy records')
       await updateCopyTargets({
         context,
         copies: job.data.copies,
@@ -100,6 +105,10 @@ export function startReplicateWorker(context: Context) {
     },
     {
       embedded: true,
+      concurrency: 3,
+      lockDuration: 600_000,
+      heartbeatInterval: 15_000,
+      maxStalledCount: 2,
     }
   )
 
@@ -114,6 +123,10 @@ export function startReplicateWorker(context: Context) {
         error: error.message,
       })
     }
+  })
+
+  worker.on('stalled', (jobId, reason) => {
+    context.logger.warn({ jobId, reason }, 'Replicate job stalled')
   })
 
   return worker
