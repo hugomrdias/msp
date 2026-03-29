@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Cli, z } from 'incur'
+import { datasets } from './commands/datasets.ts'
 import { pay } from './commands/pay.ts'
 import { pieces } from './commands/pieces.ts'
 import { sessionKeys } from './commands/session-keys.ts'
@@ -18,4 +19,5 @@ cli.command(wallet)
 cli.command(sessionKeys)
 cli.command(pieces)
 cli.command(pay)
+cli.command(datasets)
 cli.serve()

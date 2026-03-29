@@ -8,6 +8,8 @@ import { privateKeyClient } from '../client.ts'
 import { globalOptions } from '../options.ts'
 import { hashLink } from '../utils.ts'
 
+const MSP_SERVER_URL = 'http://localhost:4200'
+
 export const sessionKeys = Cli.create('session-keys', {
   description: 'Session keys commands',
 })
@@ -83,6 +85,72 @@ sessionKeys.command('revoke', {
       }
       return c.error({
         code: 'FAILED_TO_REVOKE_SESSION_KEY',
+        message: error instanceof Error ? error.message : String(error),
+      })
+    }
+  },
+})
+
+sessionKeys.command('msp', {
+  description:
+    'Request a new session key from the MSP server and approve it on-chain',
+  options: globalOptions.extend({
+    serverUrl: z
+      .string()
+      .optional()
+      .default(MSP_SERVER_URL)
+      .describe('MSP server URL'),
+  }),
+  async run(c) {
+    const { client, chain } = privateKeyClient(c.options.chainId)
+    const serverUrl = c.options.serverUrl
+
+    try {
+      const spinner = p.spinner()
+      spinner.start('Requesting session key from MSP server...')
+
+      const response = await fetch(`${serverUrl}/keys`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        spinner.stop('Failed to request key')
+        const body = await response.text()
+        return c.error({
+          code: 'MSP_KEY_REQUEST_FAILED',
+          message: `Server returned ${response.status}: ${body}`,
+        })
+      }
+
+      const { address } = (await response.json()) as { address: Address }
+      spinner.stop(`Session key created: ${address}`)
+
+      p.log.info(`Root address: ${client.account.address}`)
+      p.log.info(`Session key address: ${address}`)
+
+      const oneHundredYears = BigInt(Math.floor(Date.now() / 1000) + 100 * 365 * 24 * 60 * 60)
+      const { event: loginEvent } = await SessionKey.loginSync(client, {
+        address,
+        expiresAt: oneHundredYears,
+        onHash(hash) {
+          p.log.step(
+            `Waiting for tx ${hashLink(hash, chain)} to be mined...`
+          )
+        },
+      })
+
+      p.log.success(`Login event: ${stringify(loginEvent.args)}`)
+
+      return c.ok({
+        address,
+        root: client.account.address,
+      })
+    } catch (error) {
+      if (c.options.debug) {
+        console.error(error)
+      }
+      return c.error({
+        code: 'MSP_KEY_REQUEST_FAILED',
         message: error instanceof Error ? error.message : String(error),
       })
     }

@@ -88,7 +88,7 @@ pieces.command('add', {
             {
               pieceCid,
               metadata: {
-                myelin: 'testing2',
+                source: 'msp-cli',
               },
             },
           ],
@@ -106,9 +106,15 @@ pieces.command('add', {
           serviceURL: provider.pdp.serviceURL,
           payee: provider.payee,
           cdn: false,
+          metadata: {
+            source: 'msp-cli',
+          },
           pieces: [
             {
               pieceCid,
+              metadata: {
+                source: 'msp-cli',
+              },
             },
           ],
         })
@@ -152,12 +158,19 @@ pieces.command('list', {
       limit: 100,
       offset: 0,
       where: {
-        address: client.account.address,
+        payer: client.account.address,
       },
     })
 
-    for (const piece of pieces) {
-      console.log(piece.cid, piece.metadata)
-    }
+    return c.ok({
+      pieces: pieces.map((piece) => ({
+        id: piece.id,
+        cid: piece.cid,
+        size: piece.size?.toString() ?? '-',
+        datasetId: piece.datasetId,
+        metadata: piece.metadata,
+        copy: piece.copy,
+      })),
+    })
   },
 })

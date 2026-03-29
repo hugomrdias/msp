@@ -9,7 +9,7 @@ function privateKeyFromConfig() {
   const privateKey = config.get('privateKey')
   if (!privateKey) {
     p.log.error('Private key not found')
-    p.outro('Please run `myelin-cli init` to initialize the CLI')
+    p.outro('Please run `msp-cli wallet create` to initialize the CLI')
     process.exit(1)
   }
   return privateKey
