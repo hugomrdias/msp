@@ -106,15 +106,13 @@ sessionKeys.command('msp', {
     const serverUrl = c.options.serverUrl
 
     try {
-      const spinner = p.spinner()
-      spinner.start('Requesting session key from MSP server...')
+      p.log.info('Requesting session key from MSP server...')
 
       const response = await fetch(`${serverUrl}/keys`, {
         method: 'POST',
       })
 
       if (!response.ok) {
-        spinner.stop('Failed to request key')
         const body = await response.text()
         return c.error({
           code: 'MSP_KEY_REQUEST_FAILED',
@@ -123,19 +121,19 @@ sessionKeys.command('msp', {
       }
 
       const { address } = (await response.json()) as { address: Address }
-      spinner.stop(`Session key created: ${address}`)
 
       p.log.info(`Root address: ${client.account.address}`)
       p.log.info(`Session key address: ${address}`)
 
-      const oneHundredYears = BigInt(Math.floor(Date.now() / 1000) + 100 * 365 * 24 * 60 * 60)
+      const oneHundredYears = BigInt(
+        Math.floor(Date.now() / 1000) + 100 * 365 * 24 * 60 * 60
+      )
       const { event: loginEvent } = await SessionKey.loginSync(client, {
         address,
         expiresAt: oneHundredYears,
+        origin: 'msp-cli',
         onHash(hash) {
-          p.log.step(
-            `Waiting for tx ${hashLink(hash, chain)} to be mined...`
-          )
+          p.log.step(`Waiting for tx ${hashLink(hash, chain)} to be mined...`)
         },
       })
 

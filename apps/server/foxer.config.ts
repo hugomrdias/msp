@@ -20,7 +20,7 @@ import { handleSessionKeys } from './src/hooks/handle-session-keys.ts'
 import { relations, schema } from './src/schema/index.ts'
 
 const START_BLOCK = 3573291n - 200n
-export const FINALITY_DEPTH = 2n
+export const FINALITY_DEPTH = 2n // FOR DEMO PURPOSES, SHOULD BE 30n or more for production
 
 export type Database = FoxerDatabase<typeof schema, typeof relations>
 

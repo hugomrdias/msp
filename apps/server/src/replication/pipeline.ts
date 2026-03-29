@@ -125,9 +125,9 @@ export function startReplicateWorker(context: Context) {
     }
   })
 
-  worker.on('stalled', (jobId, reason) => {
-    context.logger.warn({ jobId, reason }, 'Replicate job stalled')
-  })
+  // worker.on('stalled', (jobId, reason) => {
+  //   context.logger.warn({ jobId, reason }, 'Replicate job stalled')
+  // })
 
   return worker
 }

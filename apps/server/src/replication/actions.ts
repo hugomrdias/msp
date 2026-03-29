@@ -210,6 +210,7 @@ export async function resolveGroupLocation(
     count: 1,
     endorsedIds: new Set(),
     excludeProviderIds: new Set([sourceProviderId]),
+    metadata: MSP_METADATA,
   })
 
   if (selectedProviders.length === 0) {

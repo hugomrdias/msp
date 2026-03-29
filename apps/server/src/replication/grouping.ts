@@ -45,9 +45,9 @@ export async function startGroupingWorker(context: Context) {
     }
   )
 
-  worker.on('completed', (job) => {
-    context.logger.info({ jobId: job.id }, 'Grouping job completed')
-  })
+  // worker.on('completed', (job) => {
+  //   context.logger.info({ jobId: job.id }, 'Grouping job completed')
+  // })
 
   worker.on('failed', (job, error) => {
     context.logger.error({ jobId: job.id, error }, 'Grouping job failed')
