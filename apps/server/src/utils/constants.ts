@@ -3,13 +3,13 @@ import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { JobOptions } from 'bunqueue/client'
 import {
-  MYELIN_METADATA_KEY,
-  MYELIN_METADATA_VALUE,
+  MSP_METADATA_KEY,
+  MSP_METADATA_VALUE,
 } from '../replication/metadata.ts'
 
 function queueDataPath() {
   const path =
-    process.env.MYELIN_BUNQUEUE_PATH ??
+    process.env.MSP_BUNQUEUE_PATH ??
     fileURLToPath(
       new URL('../../.bunqueue/replication.sqlite', import.meta.url)
     )
@@ -25,6 +25,6 @@ export const DEFAULT_JOB_OPTIONS = {
   backoff: { type: 'exponential', delay: 2_000 },
 } satisfies JobOptions
 
-export const MYELIN_METADATA = {
-  [MYELIN_METADATA_KEY]: MYELIN_METADATA_VALUE,
+export const MSP_METADATA = {
+  [MSP_METADATA_KEY]: MSP_METADATA_VALUE,
 }

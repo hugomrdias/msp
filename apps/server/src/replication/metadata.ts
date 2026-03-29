@@ -1,10 +1,10 @@
-export const MYELIN_METADATA_KEY = '_myelin'
-export const MYELIN_METADATA_VALUE = '1'
+export const MSP_METADATA_KEY = '_msp'
+export const MSP_METADATA_VALUE = '1'
 
-export function isMyelinTagged(
+export function isMspTagged(
   metadata: Record<string, unknown> | null | undefined
 ) {
-  return metadata?.[MYELIN_METADATA_KEY] === MYELIN_METADATA_VALUE
+  return metadata?.[MSP_METADATA_KEY] === MSP_METADATA_VALUE
 }
 
 export function normalizeMetadata(
@@ -27,11 +27,11 @@ export function normalizeMetadata(
   return normalized
 }
 
-export function withMyelinMetadata(
+export function withMspMetadata(
   metadata: Record<string, unknown> | null | undefined
 ): Record<string, string> {
   return {
     ...normalizeMetadata(metadata),
-    [MYELIN_METADATA_KEY]: MYELIN_METADATA_VALUE,
+    [MSP_METADATA_KEY]: MSP_METADATA_VALUE,
   }
 }
