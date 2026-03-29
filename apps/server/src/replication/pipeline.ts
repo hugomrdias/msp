@@ -87,6 +87,7 @@ export function startReplicateWorker(context: Context) {
         copies: job.data.copies,
         pieceIds: result.pieceIds,
         dataSetId: result.dataSetId,
+        blockNumber: result.blockNumber,
       })
 
       await updateCopiesStatus({

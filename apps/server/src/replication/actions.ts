@@ -142,11 +142,13 @@ export async function updateCopyTargets({
   copies,
   pieceIds,
   dataSetId,
+  blockNumber,
 }: {
   context: Context
   copies: CopiesGroup['copies']
   pieceIds: bigint[]
   dataSetId?: bigint
+  blockNumber: bigint
 }) {
   const { db, schema } = context
   const now = nowInSecondsBigint()
@@ -162,6 +164,7 @@ export async function updateCopyTargets({
       .update(schema.pieceCopies)
       .set({
         targetPieceId: pieceId,
+        targetBlockNumber: blockNumber,
         ...(dataSetId !== null && dataSetId !== undefined
           ? { targetDatasetId: dataSetId }
           : {}),
@@ -348,6 +351,7 @@ export interface CommitCopiesOptions extends CopiesGroup {
 export type CommitCopiesResult = {
   pieceIds: bigint[]
   dataSetId?: bigint
+  blockNumber: bigint
 }
 
 export async function commitCopies(
@@ -375,9 +379,13 @@ export async function commitCopies(
     const confirmed = await SP.waitForAddPieces(rsp)
 
     context.logger.info({ confirmed }, 'Adding pieces to data set confirmed')
+    const receipt = await context.publicClient.getTransactionReceipt({
+      hash: confirmed.txHash,
+    })
     return {
       pieceIds: confirmed.confirmedPieceIds,
       dataSetId: confirmed.dataSetId,
+      blockNumber: receipt.blockNumber,
     }
   }
 
@@ -401,8 +409,12 @@ export async function commitCopies(
     { confirmed },
     'Creating data set and adding pieces confirmed'
   )
+  const receipt = await context.publicClient.getTransactionReceipt({
+    hash: confirmed.hash as `0x${string}`,
+  })
   return {
     pieceIds: confirmed.piecesIds,
     dataSetId: confirmed.dataSetId,
+    blockNumber: receipt.blockNumber,
   }
 }

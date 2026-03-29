@@ -14,6 +14,7 @@ export const pieceCopyStatusEnum = pgEnum('piece_copy_status', [
   'pending',
   'processing',
   'confirmed',
+  'finalized',
   'failed',
   'orphaned',
 ])
@@ -32,12 +33,14 @@ export const pieceCopies = pgTable(
     targetProviderId: bigint(),
     targetDatasetId: bigint(),
     targetPieceId: bigint(),
+    targetBlockNumber: bigint(),
     cid: text().notNull(),
     size: bigint(),
     status: pieceCopyStatusEnum().notNull(),
     error: text(),
     createdAt: bigint().notNull(),
     updatedAt: bigint(),
+    finalizedAt: bigint(),
   },
   (table) => [
     check(

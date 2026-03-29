@@ -91,7 +91,7 @@ Because status is derived from `sessionKeys` (which has a `blockNumber` column) 
 ##### Copies
 
 Copies keep intent of the users. We should keep original dataset and piece data to be able to repair even the original copy. The only critical failure mode is original SP doesn't have the piece data anymore.
-Replication should have a pipeline to validate copies at finalized depth to make sure replication is durable after reorg or Foxer replay.
+The finalization pipeline validates copies at finalized block depth to ensure replication is durable after reorgs or Foxer replay, and automatically re-replicates if target pieces disappear.
 
 ###### Copies constraints
 
@@ -99,13 +99,14 @@ Replication should have a pipeline to validate copies at finalized depth to make
 - By default one extra copy should be created
 - Piece metadata can include `{ mspCopies: [number of copies] }` to override the default
 
-###### Schema
+###### Copies Schema
 
 ```jsx
 export const pieceCopyStatusEnum = pgEnum('piece_copy_status', [
   'pending',     // Intent created, waiting for grouping worker
   'processing',  // Replicate worker picked it up (pull + commit in-flight)
   'confirmed',   // On-chain tx confirmed
+  'finalized',   // Target piece verified at finalized block depth
   'failed',      // Exhausted retries
   'orphaned',    // Source piece was removed (PiecesRemoved event)
 ])
@@ -120,20 +121,30 @@ export const pieceCopies = pgTable('pieceCopies', {
   targetProviderId:  bigint(),        // set by replicate worker
   targetDatasetId:   bigint(),        // set by replicate worker
   targetPieceId:     bigint(),        // set after commit confirms
+  targetBlockNumber: bigint(),        // block where commit tx was included
   cid:               text().notNull(),
   size:              bigint(),
   status:            pieceCopyStatusEnum().notNull(),
   error:             text(),
   createdAt:         bigint().notNull(),
   updatedAt:         bigint(),
+  finalizedAt:       bigint(),        // set when finalization verifies the copy
 })
 ```
 
-`cid` and `size` are denormalized from `pieces` intentionally — the copy row must survive source piece deletion.
+`cid` and `size` are denormalized from `pieces` intentionally — the copy row must survive source piece deletion. `targetBlockNumber` is extracted from the commit tx receipt and used by the finalization pipeline to determine when the commit block has reached finalized depth.
 
 **Status lifecycle:**
 
-Only two transitions during normal operation: `pending → processing` (grouping worker) and `processing → confirmed` (replicate worker). A single in-flight status (`processing`) simplifies recovery to one query. `finalized` is not part of the enum yet — it will be added via migration when the finalization pipeline is built.
+```text
+pending → processing → confirmed → finalized
+                           ↓            ↓
+                         failed      pending (target removed → re-replicate)
+                           ↓
+                        orphaned (source removed)
+```
+
+Three transitions during normal operation: `pending → processing` (grouping), `processing → confirmed` (replicate), `confirmed → finalized` (finalization). The finalization pipeline also handles reverse transitions: `finalized → pending` when the target piece disappears, and `confirmed/finalized → orphaned` when the source piece disappears.
 
 **Constraints & indexes:**
 
@@ -147,11 +158,11 @@ Only two transitions during normal operation: `pending → processing` (grouping
 | `piece_copies_status_index` | `status` | Grouping worker filters by `pending` |
 | `piece_copies_target_provider_id_index` | `targetProviderId` | Lookup by target provider |
 
-###### Flow
+###### Copies Flow
 
-Two queues: Grouping (repeatable, polls every 30 s) and Replicate (persistent via bunqueue). Two status transitions per copy: `pending → processing` (grouping) and `processing → confirmed | failed` (replicate).
+Two queues: Grouping (repeatable, polls every 30 s) and Replicate (persistent via bunqueue). The grouping worker also runs the finalization pipeline on each tick.
 
-```
+```text
 ┌───────────────────────┐
 │  Foxer Indexer         │
 │  storage:PieceAdded    │
@@ -173,6 +184,12 @@ Two queues: Grouping (repeatable, polls every 30 s) and Replicate (persistent vi
 │                        │     Filter: only groups with an active session key
 │                        │  2. UPDATE matched rows → status: processing
 │                        │  3. Enqueue one ReplicateQueue job per group
+│                        │
+│                        │  finalizeCopies():
+│                        │  4. Pass 1: confirmed + target piece at finalized depth → finalized
+│                        │  5. Pass 2: finalized + target piece gone → pending (re-replicate)
+│                        │  6. Pass 3: confirmed + commit block finalized + target missing → pending
+│                        │  7. Pass 4: confirmed/finalized + source piece gone → orphaned
 └──────────┬────────────┘
            │
            ▼
@@ -184,12 +201,21 @@ Two queues: Grouping (repeatable, polls every 30 s) and Replicate (persistent vi
 │                        │  4. pullCopies(): SP.waitForPullStatus()
 │                        │     (target SP fetches data from source SP)
 │                        │  5. commitCopies(): on-chain addPieces / createDataSetAndAddPieces
-│                        │  6. Update targetPieceId from confirmed result
+│                        │  6. Update targetPieceId + targetBlockNumber from confirmed result
 │                        │  7. updateCopiesStatus → confirmed
 └───────────────────────┘
 ```
 
 The grouping worker sets `processing` *before* enqueuing to prevent the next tick from re-selecting in-flight rows. The replicate worker handles the full lifecycle: resolve target → pull → commit → confirmed. On retry (up to 3 attempts with exponential backoff), the pull step is idempotent — `SP.waitForPullStatus` returns immediately if data is already at the target SP.
+
+**Finalization pipeline:**
+
+Runs as part of the grouping worker tick (every 30 s). All passes are batch SQL queries against the DB — no external calls. The `pieces` table (kept in sync by Foxer) is the source of truth for on-chain state. Four passes:
+
+1. **Finalize** — `confirmed` copies whose target piece exists in `pieces` at finalized block depth (`pieces.blockNumber ≤ finalizedBlockNumber`) transition to `finalized`.
+2. **Re-verify** — `finalized` copies whose target piece no longer exists in `pieces` (target SP dropped data or piece was removed) reset to `pending` with target fields cleared for re-replication to a different SP.
+3. **Reorg detect** — `confirmed` copies where `targetBlockNumber ≤ finalizedBlockNumber` but the target piece doesn't exist in `pieces`. The commit block has reached finality — if the piece still isn't indexed, the commit was reorged away. Reset to `pending`.
+4. **Orphan safety net** — `confirmed` or `finalized` copies whose source piece no longer exists in `pieces`. Set to `orphaned`. Catches timing edges where the `PiecesRemoved` handler didn't orphan the copy row.
 
 **Deletion flow:**
 
@@ -206,46 +232,22 @@ On startup the replicate queue is obliterated (all bunqueue jobs cleared) and al
 `{ mspCopies: N }` in piece metadata should override the default single copy. Currently `ensurePieceCopyIntent` always creates exactly one `pieceCopies` row and short-circuits if any non-orphaned copy already exists.
 
 To support N > 1:
+
 - `ensurePieceCopyIntent` reads `mspCopies` from the source piece's metadata and inserts N rows.
 - `resolveGroupLocation` accepts a set of excluded provider IDs (sibling copy targets + source) so each copy goes to a different SP.
 - The unique index `(sourceDatasetId, sourcePieceId, targetProviderId)` already handles dedup — multiple copies per piece are allowed as long as they target different providers.
 - PostgreSQL treats NULLs as distinct in unique indexes so multiple pending rows (with NULL `targetProviderId`) won't conflict.
 - When N > 1, sibling copies may end up in the same group. The replicate worker would need to call `resolveGroupLocation` with awareness of sibling copies.
 
-**2. Finalization pipeline**
-
-When built:
-- Add `finalized` to the status enum and `finalizedAt` column via migration.
-- A finalization worker periodically checks `confirmed` copies, verifies the target piece exists on-chain at finalized block depth (cross-reference with the indexed `pieces` table where `blockNumber ≤ finalizedBlockNumber` and `isMspTagged`).
-- Also verifies the source piece still exists — if the source was removed but the copy row wasn't orphaned (e.g. timing edge), mark it.
-
-**3. Target-side piece removal**
-
-When pieces are removed from the *source* dataset, copies are correctly orphaned. But if the *target* piece is removed (e.g. target SP drops data), the copy row stays `confirmed`. The finalization pipeline (item 2) should detect this and transition back to `pending` for re-replication to a different SP.
-
-**4. Source SP data unavailability**
+**2. Source SP data unavailability**
 
 This is the critical failure mode. Currently `pullCopies` fails and retries up to 3 times with no special handling. If the source SP returns 404, the copy ends up `failed`.
 
 If other confirmed copies of the same piece exist (on different SPs), the replicate worker could fall back to pulling from one of those SPs instead of the source. This requires querying `pieceCopies` for sibling copies with `status = 'confirmed'` and using their `targetProviderId` as an alternative source.
 
-### Not enough funds - what happens?
+**3. No funds**
 
-Insufficient funds manifests when `commitCopies` sends the on-chain tx — the tx reverts. The job retries up to 3 times, then the copies go to `failed`.
-
-**Two distinct failure modes:**
-
-1. **Session key gas balance** — the MSP session key sends the tx, so it needs native FIL for gas. This is MSP's operational concern.
-2. **Payer rail balance** — the payer's Filecoin Pay rails need sufficient ERC20 token balance for storage payments. This is the user's concern.
-
-**Future handling (not yet implemented):**
-
-- On commit failure, inspect the revert reason. If it's a balance-related revert, set `error` to a specific code (e.g. `insufficient_gas` or `insufficient_payment`).
-- For gas-related failures: these affect ALL copies for ALL payers (it's the MSP server's key). Log a critical alert. Don't burn retries — pause the replicate worker until the key is funded.
-- For payment-related failures: these are per-payer. Skip that payer's copies in subsequent grouping rounds until the payer adds funds. Could be tracked with a `payer_paused` flag or simply by checking balance before enqueuing.
-- Consider a pre-flight balance check in the replicate worker before calling `commitCopies`: query the session key gas balance and skip if below threshold. This avoids the wasted pull work entirely.
-- Add a `GET /keys/:address/balance` endpoint so CLI/dashboard users can monitor the session key's gas balance.
-
+Use costs api to check funds before replication
 
 ## API
 
@@ -253,7 +255,7 @@ Insufficient funds manifests when `commitCopies` sends the on-chain tx — the t
 
 List copy intent records. At least one filter is required.
 
-**Query params:** `payer` (hex address), `datasetId` (bigint), `status` (one of `pending`, `processing`, `confirmed`, `failed`, `orphaned`), `limit` (1–100, default 50), `offset` (default 0)
+**Query params:** `payer` (hex address), `datasetId` (bigint), `status` (one of `pending`, `processing`, `confirmed`, `finalized`, `failed`, `orphaned`), `limit` (1–100, default 50), `offset` (default 0)
 
 ```json
 {

@@ -5,6 +5,7 @@ import {
   REPLICATION_QUEUE_DATA_PATH,
 } from '../utils/constants.ts'
 import { groupCopies } from './actions.ts'
+import { finalizeCopies } from './finalization.ts'
 import { ReplicateQueue } from './pipeline.ts'
 
 export const GroupingQueue = new Queue('grouping', {
@@ -35,7 +36,9 @@ export async function startGroupingWorker(context: Context) {
         await ReplicateQueue.add('replicate', group, DEFAULT_JOB_OPTIONS)
       }
 
-      return { count: groups.length }
+      const finalized = await finalizeCopies(context)
+
+      return { groups: groups.length, ...finalized }
     },
     {
       embedded: true,
