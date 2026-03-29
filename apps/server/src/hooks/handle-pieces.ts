@@ -3,8 +3,9 @@ import { metadataArrayToObject } from '@filoz/synapse-core/utils'
 import type { Logger } from '@hugomrdias/foxer'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { Database, Registry } from '../../foxer.config.ts'
-import { isMyelinTagged } from '../replication/metadata.ts'
+import { isMspTagged } from '../replication/metadata.ts'
 import { schema } from '../schema/index.ts'
+import { findActiveKey } from '../utils/keys.ts'
 
 export function handlePieces(registry: Registry) {
   registry.on('storage:PieceAdded', async ({ context, event }) => {
@@ -33,7 +34,7 @@ export function handlePieces(registry: Registry) {
       .insert(schema.pieces)
       .values({
         id: args.pieceId,
-        address: dataset.payer,
+        payer: dataset.payer,
         blockNumber: event.block.number,
         datasetId: args.dataSetId,
         cid: cid.toString(),
@@ -43,13 +44,13 @@ export function handlePieces(registry: Registry) {
       .onConflictDoNothing()
 
     // Replicated pieces are indexed too, but they should not recursively create more copy intents.
-    if (isMyelinTagged(metadata)) {
+    if (isMspTagged(metadata)) {
       return
     }
 
     await ensurePieceCopyIntent({
       context,
-      owner: dataset.payer,
+      payer: dataset.payer,
       sourceDatasetId: args.dataSetId,
       sourcePieceId: args.pieceId,
       sourceProviderId: dataset.providerId,
@@ -95,7 +96,7 @@ export function handlePieces(registry: Registry) {
  * Ensures a piece copy intent is created for a given piece.
  *
  * @param context - The context object.
- * @param owner - The owner of the piece.
+ * @param payer - The payer of the piece.
  * @param sourceDatasetId - The ID of the source dataset.
  * @param sourcePieceId - The ID of the source piece.
  * @param sourceProviderId - The ID of the source provider.
@@ -106,7 +107,7 @@ export function handlePieces(registry: Registry) {
  */
 async function ensurePieceCopyIntent({
   context,
-  owner,
+  payer,
   sourceDatasetId,
   sourcePieceId,
   sourceProviderId,
@@ -119,7 +120,7 @@ async function ensurePieceCopyIntent({
     db: Database
     logger: Logger
   }
-  owner: `0x${string}`
+  payer: `0x${string}`
   sourceDatasetId: bigint
   sourcePieceId: bigint
   sourceProviderId: bigint
@@ -128,17 +129,9 @@ async function ensurePieceCopyIntent({
   size: bigint
   timestamp: bigint
 }) {
-  const key = await context.db.query.keys.findFirst({
-    where: {
-      owner,
-      status: 'active',
-    },
-    columns: {
-      owner: true,
-    },
-  })
+  const key = await findActiveKey(context.db, payer)
 
-  if (!key?.owner) {
+  if (!key) {
     return null
   }
 
@@ -158,7 +151,7 @@ async function ensurePieceCopyIntent({
     const [createdCopy] = await context.db
       .insert(schema.pieceCopies)
       .values({
-        owner,
+        payer,
         sourceDatasetId,
         sourcePieceId,
         sourceProviderId,
@@ -183,7 +176,7 @@ async function ensurePieceCopyIntent({
   await context.db
     .update(schema.pieceCopies)
     .set({
-      owner,
+      payer,
       sourceProviderId,
       sourceBlockNumber,
       cid,

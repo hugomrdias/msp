@@ -6,7 +6,7 @@ export const pieces = pgTable(
   {
     id: bigint().notNull(),
     datasetId: bigint().notNull(),
-    address: address().notNull(),
+    payer: address().notNull(),
     cid: text('cid').notNull(),
     size: bigint(),
     metadata: json().$type<Record<string, unknown>>(),

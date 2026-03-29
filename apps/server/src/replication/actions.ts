@@ -26,11 +26,12 @@ import { privateKeyToAccount } from 'viem/accounts'
 import type { Context } from '../../foxer.config.ts'
 import type { PieceCopyStatus } from '../schema/piece-copies.ts'
 import type { BasePullPiecesOptions } from '../types.ts'
-import { MYELIN_METADATA } from '../utils/constants.ts'
+import { MSP_METADATA } from '../utils/constants.ts'
+import { findActiveKey } from '../utils/keys.ts'
 import { nowInSecondsBigint } from '../utils/time.ts'
 
 export type CopiesGroup = {
-  owner: Address
+  payer: Address
   sourceProviderId: bigint
   copies: {
     id: bigint
@@ -46,7 +47,7 @@ export async function groupCopies(context: Context) {
   const finalizedBlockNumber = lastBlockNumber - context.finalityDepth
   const groups = await db
     .select({
-      owner: schema.pieceCopies.owner,
+      payer: schema.pieceCopies.payer,
       sourceProviderId: schema.pieceCopies.sourceProviderId,
       copies: sql<CopiesGroup['copies']>`json_agg(
         json_build_object(
@@ -67,24 +68,19 @@ export async function groupCopies(context: Context) {
         eq(schema.pieceCopies.status, 'pending')
       )
     )
-    .groupBy(schema.pieceCopies.owner, schema.pieceCopies.sourceProviderId)
+    .groupBy(schema.pieceCopies.payer, schema.pieceCopies.sourceProviderId)
 
   const filteredGroups: CopiesGroup[] = []
 
   for (const group of groups) {
-    const key = await db.query.keys.findFirst({
-      where: {
-        owner: group.owner,
-        status: 'active',
-      },
-    })
+    const key = await findActiveKey(db, group.payer)
 
     if (!key) {
       continue
     }
 
     filteredGroups.push({
-      owner: group.owner,
+      payer: group.payer,
       sourceProviderId: group.sourceProviderId,
       copies: group.copies,
       privateKey: key.privateKey,
@@ -131,7 +127,7 @@ export async function updateCopiesStatus({
 
 export type ResolveGroupLocationOptions = {
   context: Context
-  owner: Address
+  payer: Address
   sourceProviderId: bigint
 }
 export type ResolvedLocation =
@@ -153,11 +149,11 @@ export type ResolvedLocation =
 export async function resolveGroupLocation(
   options: ResolveGroupLocationOptions
 ) {
-  const { context, owner, sourceProviderId } = options
+  const { context, payer, sourceProviderId } = options
   const { publicClient } = context
 
   const result = await fetchProviderSelectionInput(publicClient, {
-    address: owner,
+    address: payer,
   })
 
   const selectedProviders = selectProviders({
@@ -214,7 +210,7 @@ export function signExtraData(options: SignExtraDataOptions) {
       clientDataSetId: location.dataset.clientDataSetId,
       pieces: options.group.copies.map((copy) => ({
         pieceCid: Piece.parse(copy.cid),
-        metadata: pieceMetadataObjectToEntry(MYELIN_METADATA),
+        metadata: pieceMetadataObjectToEntry(MSP_METADATA),
       })),
     })
   }
@@ -222,12 +218,12 @@ export function signExtraData(options: SignExtraDataOptions) {
   return signCreateDataSetAndAddPieces(walletClient, {
     clientDataSetId: randU256(),
     payee: location.provider.serviceProvider,
-    payer: options.group.owner,
+    payer: options.group.payer,
     pieces: options.group.copies.map((copy) => ({
       pieceCid: Piece.parse(copy.cid),
-      metadata: pieceMetadataObjectToEntry(MYELIN_METADATA),
+      metadata: pieceMetadataObjectToEntry(MSP_METADATA),
     })),
-    metadata: datasetMetadataObjectToEntry(MYELIN_METADATA),
+    metadata: datasetMetadataObjectToEntry(MSP_METADATA),
   })
 }
 
@@ -273,8 +269,8 @@ export async function pullCopies(options: PullCopiesOptions) {
     : {
         ...basePullOptions,
         payee: location.provider.serviceProvider,
-        payer: group.owner,
-        metadata: MYELIN_METADATA,
+        payer: group.payer,
+        metadata: MSP_METADATA,
       }
 
   const response = await SP.waitForPullStatus(walletClient, {
@@ -318,7 +314,7 @@ export async function commitCopies(options: CommitCopiesOptions) {
       serviceURL: options.provider.serviceURL,
       pieces: options.copies.map((copy) => ({
         pieceCid: Piece.parse(copy.cid),
-        metadata: MYELIN_METADATA,
+        metadata: MSP_METADATA,
       })),
       extraData,
     })
@@ -330,12 +326,12 @@ export async function commitCopies(options: CommitCopiesOptions) {
   } else {
     const rsp = await SP.createDataSetAndAddPieces(walletClient, {
       payee: options.provider.payee,
-      payer: options.owner,
+      payer: options.payer,
       cdn: false,
       serviceURL: options.provider.serviceURL,
       pieces: options.copies.map((copy) => ({
         pieceCid: Piece.parse(copy.cid),
-        metadata: MYELIN_METADATA,
+        metadata: MSP_METADATA,
       })),
       extraData,
     })

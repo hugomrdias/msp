@@ -58,7 +58,7 @@ export function startPullWorker(context: Context) {
       })
       const location = await resolveGroupLocation({
         context,
-        owner: job.data.owner,
+        payer: job.data.payer,
         sourceProviderId: job.data.sourceProviderId,
       })
 

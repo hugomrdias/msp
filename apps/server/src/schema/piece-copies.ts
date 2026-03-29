@@ -27,7 +27,7 @@ export const pieceCopies = pgTable(
   'pieceCopies',
   {
     id: bigserial({ mode: 'bigint' }).primaryKey(),
-    owner: address().notNull(),
+    payer: address().notNull(),
     sourceDatasetId: bigint().notNull(),
     sourcePieceId: bigint().notNull(),
     sourceProviderId: bigint().notNull(),
@@ -51,7 +51,7 @@ export const pieceCopies = pgTable(
       sql`${table.targetProviderId} IS NULL OR ${table.targetProviderId} <> ${table.sourceProviderId}`
     ),
     index('piece_copies_cid_index').on(table.cid),
-    index('piece_copies_owner_index').on(table.owner),
+    index('piece_copies_payer_index').on(table.payer),
     index('piece_copies_source_piece_index').on(
       table.sourceDatasetId,
       table.sourcePieceId

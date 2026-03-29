@@ -1,4 +1,4 @@
-import { address, bigint, hash } from '@hugomrdias/foxer'
+import { address, bigint, hash, numeric78 } from '@hugomrdias/foxer'
 import {
   foreignKey,
   index,
@@ -11,14 +11,14 @@ export const sessionKeys = pgTable(
   'sessionKeys',
   {
     signer: address().notNull().primaryKey(),
-    identity: address().notNull(),
+    payer: address().notNull(),
     origin: text().notNull(),
     blockNumber: bigint().notNull(),
     createdAt: bigint(),
     updatedAt: bigint(),
   },
   (table) => [
-    index('sessionKeys_identity_index').on(table.identity),
+    index('sessionKeys_payer_index').on(table.payer),
     index('sessionKeys_block_number_index').on(table.blockNumber),
   ]
 )
@@ -28,7 +28,7 @@ export const sessionKeyPermissions = pgTable(
   {
     signer: address().notNull(),
     permission: hash().notNull(),
-    expiry: bigint(),
+    expiry: numeric78(),
   },
   (table) => [
     primaryKey({ columns: [table.signer, table.permission] }),

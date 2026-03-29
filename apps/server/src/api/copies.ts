@@ -21,7 +21,7 @@ export function createCopies(context: FoxerContext) {
     const { limit, offset, address, datasetId } = c.req.valid('query')
 
     const where = {
-      ...(address ? { owner: address } : undefined),
+      ...(address ? { payer: address } : undefined),
       ...(datasetId ? { sourceDatasetId: datasetId } : undefined),
     }
 

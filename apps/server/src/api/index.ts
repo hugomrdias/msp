@@ -35,7 +35,7 @@ export function createApi(context: Context) {
     const { limit, offset, address, datasetId } = c.req.valid('query')
 
     const where = {
-      ...(address ? { address } : undefined),
+      ...(address ? { payer: address } : undefined),
       ...(datasetId ? { datasetId } : undefined),
     }
 
@@ -82,15 +82,15 @@ export function createApi(context: Context) {
       )
       const piecesCount = await db.$count(
         db._.fullSchema.pieces,
-        eq(db._.fullSchema.pieces.address, address)
+        eq(db._.fullSchema.pieces.payer, address)
       )
       const piecesSize = await db
         .select({ value: sum(schema.pieces.size) })
         .from(schema.pieces)
-        .where(eq(schema.pieces.address, address))
+        .where(eq(schema.pieces.payer, address))
       const sessionKeysCount = await db.$count(
         db._.fullSchema.sessionKeys,
-        eq(db._.fullSchema.sessionKeys.identity, address)
+        eq(db._.fullSchema.sessionKeys.payer, address)
       )
 
       return c.text(
