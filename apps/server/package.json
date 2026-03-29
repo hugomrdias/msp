@@ -1,8 +1,8 @@
 {
-  "name": "myelin-server",
+  "name": "msp-server",
   "version": "1.0.0",
   "private": true,
-  "description": "Myelin server",
+  "description": "MSP server",
   "keywords": [],
   "license": "MIT",
   "author": "Hugo Dias <hugomrdias@gmail.com>",

@@ -4,7 +4,6 @@ import {
   bigserial,
   check,
   index,
-  json,
   pgEnum,
   pgTable,
   text,
@@ -13,10 +12,8 @@ import {
 
 export const pieceCopyStatusEnum = pgEnum('piece_copy_status', [
   'pending',
-  'uploading',
-  'submitted',
+  'processing',
   'confirmed',
-  'finalized',
   'failed',
   'orphaned',
 ])
@@ -39,11 +36,8 @@ export const pieceCopies = pgTable(
     size: bigint(),
     status: pieceCopyStatusEnum().notNull(),
     error: text(),
-    metadata: json().$type<Record<string, string>>(),
-    requestedAt: bigint().notNull(),
-    createdAt: bigint(),
+    createdAt: bigint().notNull(),
     updatedAt: bigint(),
-    finalizedAt: bigint(),
   },
   (table) => [
     check(

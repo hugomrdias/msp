@@ -25,6 +25,8 @@ export const DEFAULT_JOB_OPTIONS = {
   backoff: { type: 'exponential', delay: 2_000 },
 } satisfies JobOptions
 
+export const MAX_BATCH_SIZE = 50
+
 export const MSP_METADATA = {
   [MSP_METADATA_KEY]: MSP_METADATA_VALUE,
 }

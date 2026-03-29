@@ -1,25 +1,40 @@
 /** biome-ignore-all lint/suspicious/noConsole: cli */
 import { shutdownManager } from 'bunqueue/client'
+import { eq } from 'drizzle-orm'
 import { asyncExitHook } from 'exit-hook'
 import type { Context } from '../../foxer.config.ts'
+import { schema } from '../schema/index.ts'
+import { nowInSecondsBigint } from '../utils/time.ts'
 import { GroupingQueue, startGroupingWorker } from './grouping.ts'
-import {
-  CommitQueue,
-  PullQueue,
-  startCommitWorker,
-  startPullWorker,
-} from './pipeline.ts'
+import { ReplicateQueue, startReplicateWorker } from './pipeline.ts'
 
 export async function startQueue(context: Context) {
+  ReplicateQueue.obliterate()
+
+  const resetResult = await context.db
+    .update(schema.pieceCopies)
+    .set({
+      status: 'pending',
+      error: null,
+      updatedAt: nowInSecondsBigint(),
+    })
+    .where(eq(schema.pieceCopies.status, 'processing'))
+    .returning({ id: schema.pieceCopies.id })
+
+  if (resetResult.length > 0) {
+    context.logger.warn(
+      { count: resetResult.length },
+      'Reset processing copies back to pending on startup'
+    )
+  }
+
   const workers = {
     grouping: await startGroupingWorker(context),
-    pull: startPullWorker(context),
-    commit: startCommitWorker(context),
+    replicate: startReplicateWorker(context),
   }
   const queues = {
     grouping: GroupingQueue,
-    pull: PullQueue,
-    commit: CommitQueue,
+    replicate: ReplicateQueue,
   }
 
   asyncExitHook(

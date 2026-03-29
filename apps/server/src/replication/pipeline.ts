@@ -1,5 +1,4 @@
 import { Queue, Worker } from 'bunqueue/client'
-import type { Address, Hex } from 'viem'
 import type { Context } from '../../foxer.config.ts'
 import {
   DEFAULT_JOB_OPTIONS,
@@ -12,50 +11,29 @@ import {
   resolveGroupLocation,
   signExtraData,
   updateCopiesStatus,
+  updateCopyTargets,
 } from './actions.ts'
 
-export interface CommitJobData extends CopiesGroup {
-  extraData: Hex
-  dataset?: {
-    clientDataSetId: string
-    dataSetId: bigint
-  }
-  provider: {
-    serviceURL: string
-    serviceProvider: Address
-    payee: Address
-  }
-}
-
-export const PullQueue = new Queue<CopiesGroup>('pull', {
+export const ReplicateQueue = new Queue<CopiesGroup>('replicate', {
   embedded: true,
   dataPath: REPLICATION_QUEUE_DATA_PATH,
 })
 
-export const CommitQueue = new Queue<CommitJobData>('commit', {
-  embedded: true,
-  dataPath: REPLICATION_QUEUE_DATA_PATH,
-})
-
-export function startPullWorker(context: Context) {
-  PullQueue.purgeDlq()
-  PullQueue.setDlqConfig({
+export function startReplicateWorker(context: Context) {
+  ReplicateQueue.purgeDlq()
+  ReplicateQueue.setDlqConfig({
     autoRetry: false,
     maxEntries: 2,
   })
 
   const worker = new Worker<CopiesGroup>(
-    'pull',
+    'replicate',
     async (job) => {
       context.logger.info(
         { jobId: job.id, name: job.name },
-        'Processing pull job'
+        'Processing replicate job'
       )
-      await updateCopiesStatus({
-        context,
-        ids: job.data.copies.map((copy) => copy.id),
-        status: 'uploading',
-      })
+
       const location = await resolveGroupLocation({
         context,
         payer: job.data.payer,
@@ -65,7 +43,7 @@ export function startPullWorker(context: Context) {
       await updateCopiesStatus({
         context,
         ids: job.data.copies.map((copy) => copy.id),
-        status: 'uploading',
+        status: 'processing',
         targetProviderId: location.provider.id,
         targetDatasetId: location.dataset?.dataSetId,
       })
@@ -87,67 +65,28 @@ export function startPullWorker(context: Context) {
         throw new Error(`Pull failed: ${response.status}`)
       }
 
-      await CommitQueue.add(
-        'commit',
-        {
-          ...job.data,
-          extraData,
-          provider: {
-            serviceURL: location.provider.pdp.serviceURL,
-            serviceProvider: location.provider.serviceProvider,
-            payee: location.provider.payee,
-          },
-          dataset: location.dataset
-            ? {
-                clientDataSetId: location.dataset.clientDataSetId.toString(),
-                dataSetId: location.dataset.dataSetId,
-              }
-            : undefined,
-        },
-        { ...DEFAULT_JOB_OPTIONS, timeout: 30_000 * 2 }
-      )
-
-      await updateCopiesStatus({
-        context,
-        ids: job.data.copies.map((copy) => copy.id),
-        status: 'submitted',
-      })
-
-      return response
-    },
-    {
-      embedded: true,
-    }
-  )
-
-  worker.on('failed', async (job, error) => {
-    context.logger.error({ jobId: job.id, error }, 'Pull job failed')
-    if (job.attemptsMade >= DEFAULT_JOB_OPTIONS.attempts - 1) {
-      await job.moveToFailed(error)
-      await updateCopiesStatus({
-        context,
-        ids: job.data.copies.map((copy) => copy.id),
-        status: 'failed',
-        error: error.message,
-      })
-    }
-  })
-
-  return worker
-}
-
-export function startCommitWorker(context: Context) {
-  const worker = new Worker<CommitJobData>(
-    'commit',
-    async (job) => {
-      context.logger.info(
-        { jobId: job.id, name: job.name },
-        'Processing commit job'
-      )
-
-      const confirmed = await commitCopies({
+      const result = await commitCopies({
         context,
         ...job.data,
+        extraData,
+        provider: {
+          serviceURL: location.provider.pdp.serviceURL,
+          serviceProvider: location.provider.serviceProvider,
+          payee: location.provider.payee,
+        },
+        dataset: location.dataset
+          ? {
+              clientDataSetId: location.dataset.clientDataSetId.toString(),
+              dataSetId: location.dataset.dataSetId,
+            }
+          : undefined,
+      })
+
+      await updateCopyTargets({
+        context,
+        copies: job.data.copies,
+        pieceIds: result.pieceIds,
+        dataSetId: result.dataSetId,
       })
 
       await updateCopiesStatus({
@@ -156,7 +95,7 @@ export function startCommitWorker(context: Context) {
         status: 'confirmed',
       })
 
-      return confirmed
+      return result
     },
     {
       embedded: true,
@@ -164,7 +103,7 @@ export function startCommitWorker(context: Context) {
   )
 
   worker.on('failed', async (job, error) => {
-    context.logger.error({ jobId: job.id, error }, 'Commit job failed')
+    context.logger.error({ jobId: job.id, error }, 'Replicate job failed')
     if (job.attemptsMade >= DEFAULT_JOB_OPTIONS.attempts - 1) {
       await job.moveToFailed(error)
       await updateCopiesStatus({

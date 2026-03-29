@@ -5,13 +5,13 @@ import { pieces } from './commands/pieces.ts'
 import { sessionKeys } from './commands/session-keys.ts'
 import { wallet } from './commands/wallet.ts'
 
-const cli = Cli.create('myelin', {
+const cli = Cli.create('msp', {
   options: z.object({
     chainId: z.number().optional().describe('Chain ID'),
     debug: z.boolean().optional().describe('Debug mode'),
   }),
   version: '0.0.0',
-  description: 'A basic incur CLI app in the myelin workspace.',
+  description: 'A basic incur CLI app in the msp workspace.',
 })
 
 cli.command(wallet)

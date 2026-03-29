@@ -26,7 +26,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import type { Context } from '../../foxer.config.ts'
 import type { PieceCopyStatus } from '../schema/piece-copies.ts'
 import type { BasePullPiecesOptions } from '../types.ts'
-import { MSP_METADATA } from '../utils/constants.ts'
+import { MAX_BATCH_SIZE, MSP_METADATA } from '../utils/constants.ts'
 import { findActiveKey } from '../utils/keys.ts'
 import { nowInSecondsBigint } from '../utils/time.ts'
 
@@ -36,7 +36,6 @@ export type CopiesGroup = {
   copies: {
     id: bigint
     cid: string
-    metadata: Record<string, unknown> | null
   }[]
   privateKey: Hex
 }
@@ -54,9 +53,7 @@ export async function groupCopies(context: Context) {
           'id',
           ${schema.pieceCopies.id},
           'cid',
-          ${schema.pieceCopies.cid},
-          'metadata',
-          ${schema.pieceCopies.metadata}
+          ${schema.pieceCopies.cid}
         )
         order by ${schema.pieceCopies.id}
       )`,
@@ -79,12 +76,23 @@ export async function groupCopies(context: Context) {
       continue
     }
 
-    filteredGroups.push({
-      payer: group.payer,
-      sourceProviderId: group.sourceProviderId,
-      copies: group.copies,
-      privateKey: key.privateKey,
-    })
+    const copyIds = group.copies.map((c) => c.id)
+    await db
+      .update(schema.pieceCopies)
+      .set({
+        status: 'processing',
+        updatedAt: nowInSecondsBigint(),
+      })
+      .where(inArray(schema.pieceCopies.id, copyIds))
+
+    for (let i = 0; i < group.copies.length; i += MAX_BATCH_SIZE) {
+      filteredGroups.push({
+        payer: group.payer,
+        sourceProviderId: group.sourceProviderId,
+        copies: group.copies.slice(i, i + MAX_BATCH_SIZE),
+        privateKey: key.privateKey,
+      })
+    }
   }
 
   return filteredGroups
@@ -117,12 +125,50 @@ export async function updateCopiesStatus({
     .update(schema.pieceCopies)
     .set({
       status,
-      error: error ?? '',
+      error: error ?? null,
       targetProviderId,
       targetDatasetId,
       updatedAt: nowInSecondsBigint(),
     })
     .where(inArray(schema.pieceCopies.id, ids))
+}
+
+/**
+ * Updates each copy's targetPieceId (and targetDatasetId for newly created datasets)
+ * from the confirmed commit result.
+ */
+export async function updateCopyTargets({
+  context,
+  copies,
+  pieceIds,
+  dataSetId,
+}: {
+  context: Context
+  copies: CopiesGroup['copies']
+  pieceIds: bigint[]
+  dataSetId?: bigint
+}) {
+  const { db, schema } = context
+  const now = nowInSecondsBigint()
+
+  for (let i = 0; i < copies.length; i++) {
+    const copy = copies[i]
+    const pieceId = pieceIds[i]
+    if (pieceId == null) {
+      continue
+    }
+
+    await db
+      .update(schema.pieceCopies)
+      .set({
+        targetPieceId: pieceId,
+        ...(dataSetId !== null && dataSetId !== undefined
+          ? { targetDatasetId: dataSetId }
+          : {}),
+        updatedAt: now,
+      })
+      .where(eq(schema.pieceCopies.id, copy.id))
+  }
 }
 
 export type ResolveGroupLocationOptions = {
@@ -299,7 +345,14 @@ export interface CommitCopiesOptions extends CopiesGroup {
     payee: Address
   }
 }
-export async function commitCopies(options: CommitCopiesOptions) {
+export type CommitCopiesResult = {
+  pieceIds: bigint[]
+  dataSetId?: bigint
+}
+
+export async function commitCopies(
+  options: CommitCopiesOptions
+): Promise<CommitCopiesResult> {
   const { privateKey, context, extraData } = options
   const walletClient = createWalletClient({
     account: privateKeyToAccount(privateKey),
@@ -322,28 +375,34 @@ export async function commitCopies(options: CommitCopiesOptions) {
     const confirmed = await SP.waitForAddPieces(rsp)
 
     context.logger.info({ confirmed }, 'Adding pieces to data set confirmed')
-    return confirmed
-  } else {
-    const rsp = await SP.createDataSetAndAddPieces(walletClient, {
-      payee: options.provider.payee,
-      payer: options.payer,
-      cdn: false,
-      serviceURL: options.provider.serviceURL,
-      pieces: options.copies.map((copy) => ({
-        pieceCid: Piece.parse(copy.cid),
-        metadata: MSP_METADATA,
-      })),
-      extraData,
-    })
-    context.logger.info(
-      { txHash: rsp.txHash },
-      'Creating data set and adding pieces'
-    )
-    const confirmed = await SP.waitForCreateDataSetAddPieces(rsp)
-    context.logger.info(
-      { confirmed },
-      'Creating data set and adding pieces confirmed'
-    )
-    return confirmed
+    return {
+      pieceIds: confirmed.confirmedPieceIds,
+      dataSetId: confirmed.dataSetId,
+    }
+  }
+
+  const rsp = await SP.createDataSetAndAddPieces(walletClient, {
+    payee: options.provider.payee,
+    payer: options.payer,
+    cdn: false,
+    serviceURL: options.provider.serviceURL,
+    pieces: options.copies.map((copy) => ({
+      pieceCid: Piece.parse(copy.cid),
+      metadata: MSP_METADATA,
+    })),
+    extraData,
+  })
+  context.logger.info(
+    { txHash: rsp.txHash },
+    'Creating data set and adding pieces'
+  )
+  const confirmed = await SP.waitForCreateDataSetAddPieces(rsp)
+  context.logger.info(
+    { confirmed },
+    'Creating data set and adding pieces confirmed'
+  )
+  return {
+    pieceIds: confirmed.piecesIds,
+    dataSetId: confirmed.dataSetId,
   }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "myelin-cli",
+  "name": "msp-cli",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -19,6 +19,6 @@
     "incur": "^0.3.13",
     "terminal-link": "^5.0.0",
     "viem": "^2.47.6",
-    "myelin-server": "workspace:*"
+    "msp-server": "workspace:*"
   }
 }

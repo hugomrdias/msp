@@ -1,4 +1,3 @@
-CREATE TYPE "status" AS ENUM('pending', 'active', 'error', 'revoked');--> statement-breakpoint
 CREATE TYPE "piece_copy_status" AS ENUM('pending', 'uploading', 'submitted', 'confirmed', 'finalized', 'failed', 'orphaned');--> statement-breakpoint
 CREATE TYPE "transaction_type" AS ENUM('legacy', 'eip1559', 'eip2930', 'eip4844', 'eip7702');--> statement-breakpoint
 CREATE TABLE "datasets" (
@@ -19,16 +18,12 @@ CREATE TABLE "datasets" (
 --> statement-breakpoint
 CREATE TABLE "keys" (
 	"address" varchar(42) PRIMARY KEY,
-	"owner" varchar(42),
-	"private_key" varchar(66) NOT NULL,
-	"status" "status" NOT NULL,
-	"error" text,
-	"expires_at" bigint
+	"private_key" varchar(66) NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "pieceCopies" (
 	"id" bigserial PRIMARY KEY,
-	"owner" varchar(42) NOT NULL,
+	"payer" varchar(42) NOT NULL,
 	"source_dataset_id" bigint NOT NULL,
 	"source_piece_id" bigint NOT NULL,
 	"source_provider_id" bigint NOT NULL,
@@ -51,7 +46,7 @@ CREATE TABLE "pieceCopies" (
 CREATE TABLE "pieces" (
 	"id" bigint,
 	"dataset_id" bigint,
-	"address" varchar(42) NOT NULL,
+	"payer" varchar(42) NOT NULL,
 	"cid" text NOT NULL,
 	"size" bigint,
 	"metadata" json,
@@ -81,13 +76,13 @@ CREATE TABLE "providers" (
 CREATE TABLE "sessionKeyPermissions" (
 	"signer" varchar(42),
 	"permission" varchar(66),
-	"expiry" bigint,
+	"expiry" numeric(78,0),
 	CONSTRAINT "sessionKeyPermissions_pkey" PRIMARY KEY("signer","permission")
 );
 --> statement-breakpoint
 CREATE TABLE "sessionKeys" (
 	"signer" varchar(42) PRIMARY KEY,
-	"identity" varchar(42) NOT NULL,
+	"payer" varchar(42) NOT NULL,
 	"origin" text NOT NULL,
 	"block_number" bigint NOT NULL,
 	"created_at" bigint,
@@ -139,14 +134,14 @@ CREATE TABLE "transactions" (
 --> statement-breakpoint
 CREATE INDEX "datasets_block_number_index" ON "datasets" ("block_number");--> statement-breakpoint
 CREATE INDEX "piece_copies_cid_index" ON "pieceCopies" ("cid");--> statement-breakpoint
-CREATE INDEX "piece_copies_owner_index" ON "pieceCopies" ("owner");--> statement-breakpoint
+CREATE INDEX "piece_copies_payer_index" ON "pieceCopies" ("payer");--> statement-breakpoint
 CREATE INDEX "piece_copies_source_piece_index" ON "pieceCopies" ("source_dataset_id","source_piece_id");--> statement-breakpoint
 CREATE INDEX "piece_copies_status_index" ON "pieceCopies" ("status");--> statement-breakpoint
 CREATE INDEX "piece_copies_target_provider_id_index" ON "pieceCopies" ("target_provider_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "piece_copies_source_piece_target_provider_unique" ON "pieceCopies" ("source_dataset_id","source_piece_id","target_provider_id");--> statement-breakpoint
 CREATE INDEX "pieces_block_number_index" ON "pieces" ("block_number");--> statement-breakpoint
 CREATE INDEX "providers_block_number_index" ON "providers" ("block_number");--> statement-breakpoint
-CREATE INDEX "sessionKeys_identity_index" ON "sessionKeys" ("identity");--> statement-breakpoint
+CREATE INDEX "sessionKeys_payer_index" ON "sessionKeys" ("payer");--> statement-breakpoint
 CREATE INDEX "sessionKeys_block_number_index" ON "sessionKeys" ("block_number");--> statement-breakpoint
 CREATE INDEX "transactions_block_number_index" ON "transactions" ("block_number");--> statement-breakpoint
 CREATE INDEX "transactions_to_block_number_index" ON "transactions" ("to","block_number");--> statement-breakpoint

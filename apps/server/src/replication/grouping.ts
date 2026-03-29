@@ -5,7 +5,7 @@ import {
   REPLICATION_QUEUE_DATA_PATH,
 } from '../utils/constants.ts'
 import { groupCopies } from './actions.ts'
-import { PullQueue } from './pipeline.ts'
+import { ReplicateQueue } from './pipeline.ts'
 
 export const GroupingQueue = new Queue('grouping', {
   embedded: true,
@@ -32,7 +32,7 @@ export async function startGroupingWorker(context: Context) {
       const groups = await groupCopies(context)
 
       for (const group of groups) {
-        await PullQueue.add('pull', group, DEFAULT_JOB_OPTIONS)
+        await ReplicateQueue.add('replicate', group, DEFAULT_JOB_OPTIONS)
       }
 
       return { count: groups.length }

@@ -1,5 +1,4 @@
 import { sValidator } from '@hono/standard-validator'
-import type { Logger } from '@hugomrdias/foxer'
 import { sqlMiddleware } from '@hugomrdias/foxer/api'
 import { eq, sum } from 'drizzle-orm'
 import { Hono } from 'hono'
@@ -28,20 +27,20 @@ export function createApi(context: Context) {
   const piecesParamsSchema = z.object({
     limit: z.coerce.number().min(1).max(100).optional().default(50),
     offset: z.coerce.number().optional().default(0),
-    address: zHex.optional(),
+    payer: zHex.optional(),
     datasetId: z.coerce.bigint().optional(),
   })
   app.get('/pieces', sValidator('query', piecesParamsSchema), async (c) => {
-    const { limit, offset, address, datasetId } = c.req.valid('query')
+    const { limit, offset, payer, datasetId } = c.req.valid('query')
 
     const where = {
-      ...(address ? { payer: address } : undefined),
+      ...(payer ? { payer } : undefined),
       ...(datasetId ? { datasetId } : undefined),
     }
 
     if (Object.keys(where).length === 0) {
       return c.text(
-        'At least one filter is required: address and/or datasetId',
+        'At least one filter is required: payer and/or datasetId',
         400
       )
     }
@@ -68,29 +67,29 @@ export function createApi(context: Context) {
   })
 
   const totalsByAddressSchema = z.object({
-    address: zHex,
+    payer: zHex,
   })
   app.get(
     '/totals-by-address',
     sValidator('query', totalsByAddressSchema),
     async (c) => {
-      const { address } = c.req.valid('query')
+      const { payer } = c.req.valid('query')
 
       const datasetsCount = await db.$count(
         db._.fullSchema.datasets,
-        eq(db._.fullSchema.datasets.payer, address)
+        eq(db._.fullSchema.datasets.payer, payer)
       )
       const piecesCount = await db.$count(
         db._.fullSchema.pieces,
-        eq(db._.fullSchema.pieces.payer, address)
+        eq(db._.fullSchema.pieces.payer, payer)
       )
       const piecesSize = await db
         .select({ value: sum(schema.pieces.size) })
         .from(schema.pieces)
-        .where(eq(schema.pieces.payer, address))
+        .where(eq(schema.pieces.payer, payer))
       const sessionKeysCount = await db.$count(
         db._.fullSchema.sessionKeys,
-        eq(db._.fullSchema.sessionKeys.payer, address)
+        eq(db._.fullSchema.sessionKeys.payer, payer)
       )
 
       return c.text(

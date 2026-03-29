@@ -159,7 +159,6 @@ async function ensurePieceCopyIntent({
         cid,
         size,
         status: 'pending',
-        requestedAt: timestamp,
         createdAt: timestamp,
         updatedAt: timestamp,
       })
@@ -186,7 +185,6 @@ async function ensurePieceCopyIntent({
       targetPieceId: null,
       status: 'pending',
       error: null,
-      metadata: null,
       updatedAt: timestamp,
     })
     .where(eq(schema.pieceCopies.id, existingCopy.id))

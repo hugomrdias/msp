@@ -1,22 +1,11 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "4c67c05b-ba32-4475-b83e-c2d77a8f468b",
+  "id": "2be9c2fb-2f02-445b-a538-3d876420212d",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
   "ddl": [
-    {
-      "values": [
-        "pending",
-        "active",
-        "error",
-        "revoked"
-      ],
-      "name": "status",
-      "entityType": "enums",
-      "schema": "public"
-    },
     {
       "values": [
         "pending",
@@ -280,19 +269,6 @@
       "table": "keys"
     },
     {
-      "type": "varchar(42)",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "owner",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "keys"
-    },
-    {
       "type": "varchar(66)",
       "typeSchema": null,
       "notNull": true,
@@ -301,45 +277,6 @@
       "generated": null,
       "identity": null,
       "name": "private_key",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "keys"
-    },
-    {
-      "type": "status",
-      "typeSchema": "public",
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "status",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "keys"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "error",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "keys"
-    },
-    {
-      "type": "bigint",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "expires_at",
       "entityType": "columns",
       "schema": "public",
       "table": "keys"
@@ -365,7 +302,7 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "owner",
+      "name": "payer",
       "entityType": "columns",
       "schema": "public",
       "table": "pieceCopies"
@@ -612,7 +549,7 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "address",
+      "name": "payer",
       "entityType": "columns",
       "schema": "public",
       "table": "pieces"
@@ -904,7 +841,7 @@
       "table": "sessionKeyPermissions"
     },
     {
-      "type": "bigint",
+      "type": "numeric(78,0)",
       "typeSchema": null,
       "notNull": false,
       "dimensions": 0,
@@ -937,7 +874,7 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "identity",
+      "name": "payer",
       "entityType": "columns",
       "schema": "public",
       "table": "sessionKeys"
@@ -1521,7 +1458,7 @@
       "nameExplicit": true,
       "columns": [
         {
-          "value": "owner",
+          "value": "payer",
           "isExpression": false,
           "asc": true,
           "nullsFirst": false,
@@ -1533,7 +1470,7 @@
       "with": "",
       "method": "btree",
       "concurrently": false,
-      "name": "piece_copies_owner_index",
+      "name": "piece_copies_payer_index",
       "entityType": "indexes",
       "schema": "public",
       "table": "pieceCopies"
@@ -1689,7 +1626,7 @@
       "nameExplicit": true,
       "columns": [
         {
-          "value": "identity",
+          "value": "payer",
           "isExpression": false,
           "asc": true,
           "nullsFirst": false,
@@ -1701,7 +1638,7 @@
       "with": "",
       "method": "btree",
       "concurrently": false,
-      "name": "sessionKeys_identity_index",
+      "name": "sessionKeys_payer_index",
       "entityType": "indexes",
       "schema": "public",
       "table": "sessionKeys"
