@@ -19,5 +19,3 @@ cli.command(sessionKeys)
 cli.command(pieces)
 cli.command(pay)
 cli.serve()
-
-export default cli

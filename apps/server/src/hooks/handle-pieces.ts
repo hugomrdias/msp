@@ -30,6 +30,8 @@ export function handlePieces(registry: Registry) {
       return
     }
 
+    const mspCopy = isMspTagged(metadata)
+
     await context.db
       .insert(schema.pieces)
       .values({
@@ -40,11 +42,11 @@ export function handlePieces(registry: Registry) {
         cid: cid.toString(),
         size,
         metadata,
+        copy: mspCopy,
       })
       .onConflictDoNothing()
 
-    // Replicated pieces are indexed too, but they should not recursively create more copy intents.
-    if (isMspTagged(metadata)) {
+    if (mspCopy) {
       return
     }
 

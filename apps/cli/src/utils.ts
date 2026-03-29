@@ -1,3 +1,4 @@
+/** biome-ignore-all lint/suspicious/noConsole: cli */
 import * as p from '@clack/prompts'
 import type { Chain } from '@filoz/synapse-core/chains'
 import { getApprovedPDPProviders } from '@filoz/synapse-core/sp-registry'

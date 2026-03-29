@@ -1,5 +1,12 @@
 import { address, bigint } from '@hugomrdias/foxer'
-import { index, json, pgTable, primaryKey, text } from 'drizzle-orm/pg-core'
+import {
+  boolean,
+  index,
+  json,
+  pgTable,
+  primaryKey,
+  text,
+} from 'drizzle-orm/pg-core'
 
 export const pieces = pgTable(
   'pieces',
@@ -11,6 +18,7 @@ export const pieces = pgTable(
     size: bigint(),
     metadata: json().$type<Record<string, unknown>>(),
     blockNumber: bigint().notNull(),
+    copy: boolean().notNull().default(false),
   },
   (table) => [
     primaryKey({ columns: [table.datasetId, table.id] }),

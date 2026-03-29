@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { type Address, decodeFunctionData, zeroAddress } from 'viem'
 
 import type { Registry } from '../../foxer.config'
+import { isMspTagged } from '../replication/metadata.ts'
 import { schema } from '../schema/index.ts'
 
 // TODO add contract to the context
@@ -26,6 +27,7 @@ export function handleDatasets(registry: Registry) {
         blockNumber: event.block.number,
         createdAt: event.block.timestamp,
         updatedAt: event.block.timestamp,
+        copy: isMspTagged(metadata),
       })
       .onConflictDoUpdate({
         target: [schema.datasets.dataSetId],

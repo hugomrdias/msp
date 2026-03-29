@@ -1,5 +1,5 @@
 import { address, bigint } from '@hugomrdias/foxer'
-import { index, json, pgTable } from 'drizzle-orm/pg-core'
+import { boolean, index, json, pgTable } from 'drizzle-orm/pg-core'
 
 export const datasets = pgTable(
   'datasets',
@@ -17,6 +17,7 @@ export const datasets = pgTable(
     listenerAddr: address(),
     createdAt: bigint(),
     updatedAt: bigint(),
+    copy: boolean().notNull().default(false),
   },
   (table) => [index('datasets_block_number_index').on(table.blockNumber)]
 )

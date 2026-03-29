@@ -1,5 +1,5 @@
-export const MSP_METADATA_KEY = '_msp'
-export const MSP_METADATA_VALUE = '1'
+export const MSP_METADATA_KEY = 'source'
+export const MSP_METADATA_VALUE = 'msp'
 
 export function isMspTagged(
   metadata: Record<string, unknown> | null | undefined
